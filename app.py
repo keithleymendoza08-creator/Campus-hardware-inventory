@@ -1,6 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, g, Response
 from werkzeug.security import generate_password_hash, check_password_hash
-from werkzeug.utils import secure_filename
 import psycopg
 from psycopg.rows import dict_row
 import Laboratorysystem as lab
@@ -36,7 +35,7 @@ def close(exception):
     if db:
         db.close()
 
-# Safe auto-init ng database tables sa unang request o startup
+# Safe auto-init ng database tables at karagdagang mga kolum sa startup
 @app.before_request
 def initialize_database():
     if not hasattr(app, 'db_initialized'):
@@ -102,11 +101,11 @@ def register():
                 """, (request.form['student_id'], request.form['fullname'], request.form['email'],
                       generate_password_hash(password), role, course, section, department))
                 db.commit()
-            flash(f'Account created! {department} - {section} (8 chars password OK)', 'success')
+            flash(f'Account created! {department} - {section}', 'success')
             return redirect('/login')
         except Exception as e:
             print(e)
-            flash('Email or ID already exists', 'danger')
+            flash('Email or Student ID already exists', 'danger')
     return render_template('register.html')
 
 @app.route('/logout')
@@ -212,7 +211,7 @@ def reset_password():
         else:
             hashed = generate_password_hash(request.form['new_password'])
             lab.update_password(session['user_id'], hashed)
-            flash('Password updated! Please login again. (8 chars OK)', 'success')
+            flash('Password updated! Please login again.', 'success')
             return redirect('/logout')
     return render_template('reset_password.html')
 
@@ -254,47 +253,81 @@ def forgot_password_alias():
 
 @app.route('/borrow', methods=['POST'])
 def borrow():
-    ok, msg = lab.request_borrow(session['user_id'], request.form['hw_id'], int(request.form['qty']), int(request.form['days']), request.form['remarks'])
+    if 'user_id' not in session:
+        return redirect('/login')
+    ok, msg = lab.request_borrow(
+        session['user_id'], 
+        int(request.form['hw_id']), 
+        int(request.form['qty']), 
+        int(request.form['days']), 
+        request.form.get('remarks', '')
+    )
     flash(msg, 'success' if ok else 'danger')
     return redirect('/dashboard')
 
 @app.route('/user/return/<int:id>')
 def user_return(id):
+    if 'user_id' not in session:
+        return redirect('/login')
     lab.request_return(id)
     flash('Return request submitted for checking.', 'info')
     return redirect('/dashboard')
 
 @app.route('/user/pay/<int:id>')
 def user_pay(id):
+    if 'user_id' not in session:
+        return redirect('/login')
     lab.pay_damage(id)
     flash('Payment Paid!', 'success')
     return redirect('/dashboard')
 
 @app.route('/admin/approve/<int:id>')
 def approve(id):
+    if 'user_id' not in session or session.get('role') in ['student', 'employee']:
+        flash('Unauthorized access', 'danger')
+        return redirect('/dashboard')
     ok, msg = lab.approve_borrow(id, session['user_id'])
     flash(msg, 'success' if ok else 'danger')
     return redirect('/dashboard')
 
 @app.route('/admin/check_return/<int:id>', methods=['POST'])
 def check_return(id):
-    lab.admin_check_return(id, request.form['condition'], request.form.get('damage_remarks',''), float(request.form.get('payment',0)))
+    if 'user_id' not in session or session.get('role') in ['student', 'employee']:
+        flash('Unauthorized access', 'danger')
+        return redirect('/dashboard')
+    lab.admin_check_return(
+        id, 
+        request.form['condition'], 
+        request.form.get('damage_remarks',''), 
+        float(request.form.get('payment', 0))
+    )
     flash(f"Return checked as {request.form['condition']}", 'success')
     return redirect('/dashboard')
 
 @app.route('/admin/add_stock', methods=['POST'])
 def add_stock():
+    if 'user_id' not in session or session.get('role') in ['student', 'employee']:
+        flash('Unauthorized access', 'danger')
+        return redirect('/dashboard')
     qty = int(request.form.get('quantity', 0) or 0)
     if qty < 0:
-        flash("Quantity cannot be negative, but 0 allowed!", "danger")
+        flash("Quantity cannot be negative!", "danger")
         return redirect('/dashboard')
-    lab.add_or_restock_hardware(request.form['name'], request.form['category'], qty, request.form['location'], float(request.form.get('unit_price',0) or 0), session['user_id'])
+    lab.add_or_restock_hardware(
+        request.form['name'], 
+        request.form['category'], 
+        qty, 
+        request.form.get('location', ''), 
+        float(request.form.get('unit_price', 0) or 0), 
+        session['user_id']
+    )
     flash(f'Stock added! Qty: {qty}', 'success')
     return redirect('/dashboard')
 
 @app.route('/admin/edit/<int:id>', methods=['POST'])
 def edit_item(id):
-    if session.get('role') in ['student','employee']:
+    if 'user_id' not in session or session.get('role') in ['student', 'employee']:
+        flash('Unauthorized access', 'danger')
         return redirect('/dashboard')
     db = get_db()
     with db.cursor() as cur:
@@ -308,6 +341,7 @@ def edit_item(id):
         unit_price = float(request.form.get('unit_price', old['unit_price']) or 0)
         total_qty = int(request.form.get('total_quantity', old['total_quantity']) or 0)
         avail = int(request.form.get('available', old['available']) or 0)
+        
         if total_qty < 0 or avail < 0:
             flash("0 is allowed, negative not!", "danger")
             return redirect('/dashboard')
@@ -317,30 +351,39 @@ def edit_item(id):
         if avail > total_qty:
             flash("Ending cannot be > Beginning", "danger")
             return redirect('/dashboard')
+            
         new_borrowed = total_qty - avail
-        cur.execute("UPDATE hardware SET name=%s, category=%s, location=%s, unit_price=%s, total_quantity=%s, available=%s, borrowed=%s WHERE id=%s",
-                    (name, category, location, unit_price, total_qty, avail, new_borrowed, id))
+        cur.execute("""
+            UPDATE hardware 
+            SET name=%s, category=%s, location=%s, unit_price=%s, total_quantity=%s, available=%s, borrowed=%s 
+            WHERE id=%s
+        """, (name, category, location, unit_price, total_qty, avail, new_borrowed, id))
         db.commit()
-    flash(f'Updated! Beg:{total_qty} End:{avail} (0=Out of Stock)', 'success')
+    flash(f'Updated! Beg:{total_qty} End:{avail}', 'success')
     return redirect('/dashboard')
 
 @app.route('/admin/delete/<int:id>')
 def delete_item(id):
+    if 'user_id' not in session or session.get('role') in ['student', 'employee']:
+        flash('Unauthorized access', 'danger')
+        return redirect('/dashboard')
     lab.delete_hardware(id)
     flash('Item deleted!', 'danger')
     return redirect('/dashboard')
 
 @app.route('/export_csv')
 def export_csv():
+    if 'user_id' not in session:
+        return redirect('/login')
     db = get_db()
     with db.cursor() as cur:
         hw = cur.execute("SELECT * FROM hardware").fetchall()
     si = StringIO()
     w = csv.writer(si)
-    w.writerow(['ID','Equipment','Category','Beginning','Borrowed','Ending','Unit Price','Location'])
+    w.writerow(['ID', 'Equipment', 'Category', 'Beginning', 'Borrowed', 'Ending', 'Unit Price', 'Location'])
     for h in hw:
         w.writerow([h['id'], h['name'], h['category'], h['total_quantity'], h['borrowed'], h['available'], h['unit_price'], h['location']])
-    return Response(si.getvalue(), mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=inventory.csv"})
+    return Response(si.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=inventory.csv"})
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
