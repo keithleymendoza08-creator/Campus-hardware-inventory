@@ -21,12 +21,6 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# INITIALIZE SYSTEM
-try:
-    lab.init_system()
-except Exception as e:
-    print("System init info:", e)
-
 # AUTO MIGRATION FOR POSTGRESQL
 def migrate_users_table():
     try:
@@ -40,7 +34,13 @@ def migrate_users_table():
     except Exception as e:
         print("Migration info:", e)
 
-migrate_users_table()
+# SAFELY INITIALIZE DB TABLES ON APP STARTUP
+with app.app_context():
+    try:
+        lab.init_system()
+        migrate_users_table()
+    except Exception as e:
+        print("Startup Init Warning:", e)
 
 def get_db():
     db = getattr(g, '_database', None)
