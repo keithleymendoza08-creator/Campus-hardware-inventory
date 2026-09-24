@@ -1,0 +1,130 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center">
+<div>
+<small class="text-primary fw-bold" style="letter-spacing:2px;">LABORATORY DASHBOARD</small>
+<h3 class="fw-bold mb-0">Good day, {{ session.fullname }}! {% if session.role in ['student','employee'] %}🎓{% else %}👋{% endif %}</h3>
+<small class="text-muted">{% if session.role in ['student','employee'] %}USER DASHBOARD - Student / Employee{% else %}ADMIN DASHBOARD - Laboratory Technician{% endif %}</small>
+</div>
+<div>
+{% if session.role not in ['student','employee'] %}
+<button class="btn btn-nu btn-sm me-2" data-bs-toggle="modal" data-bs-target="#addModal">+ Add Stock</button>
+<a href="/export_csv" class="btn btn-primary btn-sm fw-bold">Export Inventory CSV</a>
+{% endif %}
+</div>
+</div>
+
+<div class="row g-3 mt-3">
+<div class="col-md-4"><div class="card p-3 border-0 shadow-sm" style="border-left:4px solid #FFD400!important"><small class="text-muted">BEGINNING BALANCE</small><h3 class="fw-bold mb-0 text-primary">{{ total_stocks }}</h3><small style="font-size:11px;">Total Owned</small></div></div>
+<div class="col-md-4"><div class="card p-3 border-0 shadow-sm" style="border-left:4px solid #dc3545!important"><small class="text-muted">BORROWED OUT</small><h3 class="fw-bold mb-0 text-danger">{{ borrowed }}</h3><small style="font-size:11px;">Currently Outside</small></div></div>
+<div class="col-md-4"><div class="card p-3 border-0 shadow-sm" style="border-left:4px solid #198754!important"><small class="text-muted">ENDING BALANCE</small><h3 class="fw-bold mb-0 text-success">{{ ending }}</h3><small style="font-size:11px;">Available Now</small></div></div>
+</div>
+
+{% if session.role in ['student','employee'] %}
+<div class="card p-3 mt-4 border-0 shadow-sm">
+<h6 class="fw-bold">Request Borrow Equipment</h6>
+<form action="/borrow" method="POST" class="row g-2 mt-2 align-items-end">
+<div class="col-md-3"><label class="small">Equipment</label><select name="hw_id" class="form-select form-select-sm" required>{% for h in hardwares %}{% if h['available']>0 %}<option value="{{ h['id'] }}">{{ h['name'] }} - Avail: {{ h['available'] }} / Beg: {{ h['total_quantity'] }}</option>{% endif %}{% endfor %}</select></div>
+<div class="col-md-1"><label class="small">Qty</label><input name="qty" type="number" min="1" class="form-control form-control-sm" required></div>
+<div class="col-md-2"><label class="small">Days</label><input name="days" type="number" min="1" max="30" value="3" class="form-control form-control-sm" required></div>
+<div class="col-md-4"><label class="small">Purpose</label><input name="remarks" class="form-control form-control-sm" placeholder="Thesis, Activity" required></div>
+<div class="col-md-2"><button class="btn btn-primary btn-sm w-100">Submit</button></div>
+</form>
+</div>
+
+<div class="card p-3 mt-4 border-0 shadow-sm">
+<h6 class="fw-bold">My Borrowed Items</h6>
+<div class="table-responsive mt-2">
+<table class="table table-bordered small bg-white align-middle"><thead class="table-dark"><tr><th>Item</th><th>Qty</th><th>Beg</th><th>End</th><th>Expected Return</th><th>Status</th><th>Return Status</th><th>Damage</th><th>Action</th></tr></thead><tbody>
+{% for t in my_borrowed %}<tr>
+<td class="fw-bold">{{ t['hname'] }}</td><td>{{ t['quantity'] }}</td><td>{{ t['beginning_balance'] }}</td><td>{{ t['ending_balance'] }}</td><td><span class="badge bg-info">{{ t['expected_return'] }}</span> ({{ t['borrow_days'] }}d)</td>
+<td>{% if t['status']=='Pending' %}<span class="badge bg-warning text-dark">Pending</span>{% elif t['status']=='Approved' %}<span class="badge bg-success">Approved</span>{% else %}<span class="badge bg-secondary">{{ t['status'] }}</span>{% endif %}</td>
+<td>{% if t['return_status']=='Pending' %}<span class="badge bg-secondary">In Use</span>{% elif t['return_status']=='For Checking' %}<span class="badge bg-warning text-dark">For Checking</span>{% elif t['return_status']=='Complete' %}<span class="badge bg-success">Complete</span>{% else %}<span class="badge bg-danger">Damage</span>{% endif %}</td>
+<td>{% if t['damage_status']=='Damage' %}<span class="text-danger small">{{ t['damage_remarks'] }} - ₱{{ t['payment_amount'] }}</span>{% else %}<span class="text-success small">Good</span>{% endif %}</td>
+<td>{% if t['status']=='Approved' and t['return_status']=='Pending' %}<a href="/user/return/{{ t['id'] }}" class="btn btn-warning btn-sm">Return</a>{% endif %}{% if t['payment_status']=='Unpaid' %}<a href="/user/pay/{{ t['id'] }}" class="btn btn-success btn-sm mt-1">Pay</a>{% endif %}</td>
+</tr>{% else %}<tr><td colspan="9" class="text-center text-muted">No transactions</td></tr>{% endfor %}
+</tbody></table>
+</div>
+</div>
+
+{% else %}
+<div class="card p-3 mt-4 border-0 shadow-sm">
+<h6 class="fw-bold">Pending Borrow Requests - with Department</h6>
+<table class="table table-sm small mt-2 align-middle"><thead><tr><th>User</th><th>Equipment</th><th>Qty</th><th>Beginning</th><th>Ending</th><th>Days</th><th>Remarks</th><th>Action</th></tr></thead><tbody>
+{% for t in pending %}<tr>
+<td><span class="fw-bold">{{ t['fullname'] }}</span><br><span class="badge" style="background:#35408E; font-size:9px;">{{ t['department'] }}</span> <span class="badge bg-secondary" style="font-size:9px;">{{ t['section'] }}</span></td>
+<td class="fw-bold">{{ t['hname'] }}</td><td>{{ t['quantity'] }}</td><td>{{ t['beginning_balance'] }}</td><td>{{ t['ending_balance'] }}</td><td>{{ t['borrow_days'] }}d - {{ t['expected_return'] }}</td><td>{{ t['remarks'] }}</td><td><a href="/admin/approve/{{ t['id'] }}" class="btn btn-success btn-sm">Approve</a></td></tr>{% else %}<tr><td colspan="8" class="text-center text-muted">No pending</td></tr>{% endfor %}
+</tbody></table>
+</div>
+
+<div class="card p-3 mt-3 border-0 shadow-sm">
+<h6 class="fw-bold">Check Returned Items - with Department</h6>
+<table class="table table-sm small mt-2 align-middle"><thead><tr><th>User</th><th>Item</th><th>Qty</th><th>Expected Return</th><th>Inspection</th></tr></thead><tbody>
+{% for t in for_check %}<tr>
+<td><span class="fw-bold">{{ t['fullname'] }}</span><br><span class="badge" style="background:#35408E; font-size:9px;">{{ t['department'] }}</span> <span class="badge bg-secondary" style="font-size:9px;">{{ t['section'] }}</span></td>
+<td class="fw-bold">{{ t['hname'] }}</td><td>{{ t['quantity'] }}</td><td>{{ t['expected_return'] }}</td>
+<td><form action="/admin/check_return/{{ t['id'] }}" method="POST" class="d-flex gap-1"><select name="condition" class="form-select form-select-sm" style="width:140px"><option value="Good">Good</option><option value="Damage">Damage</option></select><input name="damage_remarks" class="form-control form-control-sm" placeholder="Remarks"><input name="payment" type="number" step="0.01" value="0" class="form-control form-control-sm" style="width:80px"><button class="btn btn-primary btn-sm">Save</button></form></td></tr>{% else %}<tr><td colspan="5" class="text-center text-muted">No returns for checking</td></tr>{% endfor %}
+</tbody></table>
+</div>
+{% endif %}
+
+<div class="card p-3 mt-4 border-0 shadow-sm">
+<div class="d-flex justify-content-between align-items-center">
+<div><small class="text-primary fw-bold">INVENTORY</small><h6 class="fw-bold mb-0">Hardware Catalog</h6></div>
+<form method="GET" class="d-flex"><input name="q" value="{{ search_q }}" class="form-control form-control-sm me-2" placeholder="Search"><button class="btn btn-primary btn-sm">Search</button></form>
+</div>
+<div class="table-responsive mt-3">
+<table class="table table-hover small align-middle"><thead><tr><th>Item</th><th>Category</th><th>Beginning</th><th>Borrowed</th><th>Ending</th><th>Location</th>{% if session.role not in ['student','employee'] %}<th>Price</th><th>Status</th><th>Action</th>{% endif %}</tr></thead><tbody>
+{% for h in hardwares %}<tr>
+<td class="fw-bold">{{ h['name'] }}</td><td>{{ h['category'] }}</td><td>{{ h['total_quantity'] }}</td><td><span class="badge bg-danger">{{ h['borrowed'] }}</span></td><td><span class="badge {% if h['available']==0 %}bg-danger{% else %}bg-success{% endif %}">{{ h['available'] }}</span></td><td>{{ h['location'] }}</td>
+{% if session.role not in ['student','employee'] %}
+<td>₱{{ "%.2f"|format(h['unit_price']) }}</td>
+<td>{% if h['available']==0 %}<span class="badge bg-danger-subtle text-danger">● Out of Stock</span>{% elif h['available']<=5 %}<span class="badge bg-warning-subtle text-dark">● Low Stock</span>{% else %}<span class="badge bg-success-subtle text-success">● In Stock</span>{% endif %}</td>
+<td><button class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#edit{{ h['id'] }}">Edit</button> <a href="/admin/delete/{{ h['id'] }}" class="btn btn-outline-danger btn-sm" onclick="return confirm('Delete?')">Delete</a></td>
+{% endif %}
+</tr>{% endfor %}
+</tbody></table>
+</div>
+</div>
+
+{% if session.role not in ['student','employee'] %}
+{% for h in hardwares %}
+<div class="modal fade" id="edit{{ h['id'] }}" tabindex="-1">
+<div class="modal-dialog modal-dialog-centered">
+<div class="modal-content border-0 shadow-lg">
+<div class="modal-header text-white" style="background:#35408E;">
+<h6 class="modal-title fw-bold">Edit Item - {{ h['name'] }}</h6>
+<button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+</div>
+<form action="/admin/edit/{{ h['id'] }}" method="POST" class="modal-body p-4">
+<div class="row g-3">
+<div class="col-12"><label class="small fw-bold">Equipment Name</label><input name="name" value="{{ h['name'] }}" class="form-control" required></div>
+<div class="col-md-6"><label class="small fw-bold">Category</label><input name="category" value="{{ h['category'] }}" class="form-control"></div>
+<div class="col-md-6"><label class="small fw-bold">Location</label><input name="location" value="{{ h['location'] }}" class="form-control"></div>
+<div class="col-md-4"><label class="small fw-bold text-danger">Beginning (Total)</label><input name="total_quantity" type="number" min="0" value="{{ h['total_quantity'] }}" class="form-control" required></div>
+<div class="col-md-4"><label class="small fw-bold text-success">Ending (Available) - Pwede 0</label><input name="available" type="number" min="0" value="{{ h['available'] }}" class="form-control" required></div>
+<div class="col-md-4"><label class="small fw-bold">Unit Price</label><input name="unit_price" type="number" step="0.01" min="0" value="{{ h['unit_price'] }}" class="form-control"></div>
+</div>
+<div class="alert alert-light small mt-3 mb-0">Formula: Borrowed = Beginning - Ending. Pag Ending = 0, Out of Stock.</div>
+<button class="btn w-100 mt-3 text-white fw-bold" style="background:#35408E;">💾 Save Changes - Allow 0</button>
+</form>
+</div>
+</div>
+</div>
+{% endfor %}
+
+<div class="modal fade" id="addModal" tabindex="-1">
+<div class="modal-dialog modal-dialog-centered">
+<form action="/admin/add_stock" method="POST" class="modal-content p-4 border-0 shadow-lg">
+<h6 class="fw-bold">Add / Restock Item</h6>
+<input name="name" class="form-control mb-2" placeholder="Equipment Name" required>
+<input name="category" class="form-control mb-2" placeholder="Category">
+<input name="quantity" type="number" min="0" class="form-control mb-2" placeholder="Quantity to Add (0 allowed)" required>
+<input name="unit_price" type="number" step="0.01" min="0" class="form-control mb-2" placeholder="Unit Price">
+<input name="location" class="form-control mb-2" value="Lab A" placeholder="Location">
+<button class="btn w-100 mt-2 text-white fw-bold" style="background:#35408E;">Add Stock</button>
+</form>
+</div>
+</div>
+{% endif %}
+{% endblock %}
