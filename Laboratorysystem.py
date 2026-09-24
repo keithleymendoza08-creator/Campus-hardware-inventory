@@ -13,10 +13,9 @@ app.secret_key = os.environ.get('SECRET_KEY', 'super-secret-key-change-this')
 # Fetch DATABASE_URL from Render Environment Variables
 DATABASE_URL = os.environ.get(
     'DATABASE_URL',
-    'postgresql://postgres.hudetzzomizjnygxkjqu:Cinley%40063004@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require'
+    'postgresql://postgres.hudetzzomizjnygxkjqu:Cinley%40063004@aws-0-ap-southeast-1.pooler.southeast-1.pooler.supabase.com:6543/postgres?sslmode=require'
 )
 
-# Standard logging to stdout for cloud hosting compatibility
 logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
 
 def get_connection():
@@ -78,136 +77,23 @@ def init_system():
     except Exception as e:
         logging.error(f"Database initialization error: {e}")
 
-# Automatically initialize database tables on startup
 try:
     init_system()
 except Exception as e:
-    logging.warning(f"DB Init Error (Non-fatal during startup): {e}")
+    logging.warning(f"DB Init Error: {e}")
 
-# --- SAMPLE FLASK ROUTES ---
-@app.route('/')
-def index():
-    return "NU Laboratory Hardware System API / Web Service is Running!"
-
-# --- USER BORROW/RETURN ---
-def request_borrow(user_id, hw_id, qty, days, remarks):
-    conn = get_connection()
-    with conn.cursor() as cur:
-        hw = cur.execute("SELECT * FROM hardware WHERE id=%s", (hw_id,)).fetchone()
-        if not hw:
-            conn.close()
-            return False, "Hardware not found"
-        if qty > hw['available']:
-            conn.close()
-            return False, f"Insufficient stock! Ending Balance Available: {hw['available']}"
-        exp = (datetime.now() + timedelta(days=int(days))).strftime('%Y-%m-%d')
-        cur.execute("""
-            INSERT INTO transactions
-            (user_id, hardware_id, type, beginning_balance, quantity, ending_balance, borrow_days, expected_return, status, return_status, remarks)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-        """, (user_id, hw_id, 'BORROW', hw['available'], qty, hw['available']-qty, int(days), exp, 'Pending', 'Pending', remarks))
-        conn.commit()
-    conn.close()
-    return True, f"Borrow request submitted! Expected return: {exp}"
-
-def request_return(trans_id):
-    conn = get_connection()
-    with conn.cursor() as cur:
-        cur.execute("UPDATE transactions SET return_status='For Checking' WHERE id=%s", (trans_id,))
-        conn.commit()
-    conn.close()
-
-def pay_damage(trans_id):
-    conn = get_connection()
-    with conn.cursor() as cur:
-        cur.execute("UPDATE transactions SET payment_status='Paid' WHERE id=%s", (trans_id,))
-        conn.commit()
-    conn.close()
-
-# --- ADMIN ---
-def approve_borrow(trans_id, admin_id):
-    conn = get_connection()
-    with conn.cursor() as cur:
-        t = cur.execute("SELECT * FROM transactions WHERE id=%s", (trans_id,)).fetchone()
-        hw = cur.execute("SELECT * FROM hardware WHERE id=%s", (t['hardware_id'],)).fetchone()
-        beg = hw['available']
-        if beg < t['quantity']:
-            cur.execute("UPDATE transactions SET status='Rejected' WHERE id=%s", (trans_id,))
-            conn.commit()
-            conn.close()
-            return False, f"Rejected - insufficient stock. Ending: {beg}"
-        new_end = beg - t['quantity']
-        cur.execute("UPDATE hardware SET available=%s, borrowed=borrowed+%s WHERE id=%s", (new_end, t['quantity'], hw['id']))
-        cur.execute("UPDATE transactions SET beginning_balance=%s, ending_balance=%s, status='Approved', date_approved=%s, approved_by=%s WHERE id=%s",
-                    (beg, new_end, datetime.now(), admin_id, trans_id))
-        conn.commit()
-    conn.close()
-    return True, f"Approved! New Ending Balance: {new_end}"
-
-def admin_check_return(trans_id, condition, remarks, payment):
-    conn = get_connection()
-    with conn.cursor() as cur:
-        t = cur.execute("SELECT * FROM transactions WHERE id=%s", (trans_id,)).fetchone()
-        hw = cur.execute("SELECT * FROM hardware WHERE id=%s", (t['hardware_id'],)).fetchone()
-        beg = hw['available']
-        if condition == 'Good':
-            new_end = beg + t['quantity']
-            cur.execute("UPDATE hardware SET available=%s, borrowed=borrowed-%s WHERE id=%s", (new_end, t['quantity'], hw['id']))
-            cur.execute("UPDATE transactions SET return_status='Complete', damage_status='Good', actual_return=%s, status='Returned' WHERE id=%s",
-                        (datetime.now().strftime('%Y-%m-%d'), trans_id))
-        else:
-            cur.execute("UPDATE hardware SET borrowed=borrowed-%s WHERE id=%s", (t['quantity'], hw['id']))
-            cur.execute("UPDATE transactions SET return_status='Damage', damage_status='Damage', damage_remarks=%s, payment_amount=%s, payment_status='Unpaid', actual_return=%s, status='Returned' WHERE id=%s",
-                        (remarks, payment, datetime.now().strftime('%Y-%m-%d'), trans_id))
-            new_end = beg
-        conn.commit()
-    conn.close()
-    return new_end
-
-def add_or_restock_hardware(name, category, qty, location, price, admin_id):
-    conn = get_connection()
-    with conn.cursor() as cur:
-        hw = cur.execute("SELECT * FROM hardware WHERE name=%s", (name,)).fetchone()
-        if hw:
-            new_end = hw['available'] + int(qty)
-            cur.execute("UPDATE hardware SET total_quantity=total_quantity+%s, available=%s, unit_price=%s, location=%s WHERE id=%s",
-                        (qty, new_end, price, location, hw['id']))
-        else:
-            cur.execute("INSERT INTO hardware (name, category, total_quantity, available, borrowed, unit_price, location) VALUES (%s,%s,%s,%s,%s,%s,%s)",
-                        (name, category, qty, qty, 0, price, location))
-        conn.commit()
-    conn.close()
-
-def edit_hardware(hw_id, name, category, available, price, location):
-    conn = get_connection()
-    with conn.cursor() as cur:
-        old = cur.execute("SELECT * FROM hardware WHERE id=%s", (hw_id,)).fetchone()
-        diff = int(available) - int(old['available'])
-        cur.execute("UPDATE hardware SET name=%s, category=%s, available=%s, total_quantity=total_quantity+%s, unit_price=%s, location=%s WHERE id=%s",
-                    (name, category, available, diff, price, location, hw_id))
-        conn.commit()
-    conn.close()
-
-def delete_hardware(hw_id):
-    conn = get_connection()
-    with conn.cursor() as cur:
-        cur.execute("DELETE FROM hardware WHERE id=%s", (hw_id,))
-        cur.execute("DELETE FROM transactions WHERE hardware_id=%s", (hw_id,))
-        conn.commit()
-    conn.close()
-
-# --- FOR TRANSACTIONS / PROFILE / RESET PASSWORD ---
-def get_user_profile(user_id):
-    conn = get_connection()
-    with conn.cursor() as cur:
-        user = cur.execute("SELECT * FROM users WHERE id=%s", (user_id,)).fetchone()
-    conn.close()
-    return user
-
+# --- DATABASE HELPER FUNCTIONS ---
 def get_user_by_email(email):
     conn = get_connection()
     with conn.cursor() as cur:
         user = cur.execute("SELECT * FROM users WHERE email=%s", (email,)).fetchone()
+    conn.close()
+    return user
+
+def get_user_profile(user_id):
+    conn = get_connection()
+    with conn.cursor() as cur:
+        user = cur.execute("SELECT * FROM users WHERE id=%s", (user_id,)).fetchone()
     conn.close()
     return user
 
@@ -233,34 +119,110 @@ def get_transactions_ledger(user_id=None):
     conn.close()
     return logs
 
-def update_profile_pic(user_id, filename):
+def get_all_hardware():
     conn = get_connection()
     with conn.cursor() as cur:
-        cur.execute("UPDATE users SET profile_pic=%s WHERE id=%s", (filename, user_id))
-        conn.commit()
+        items = cur.execute("SELECT * FROM hardware ORDER BY name ASC").fetchall()
     conn.close()
-    return True
+    return items
 
-def update_password(user_id, new_hashed_password):
-    conn = get_connection()
-    with conn.cursor() as cur:
-        cur.execute("UPDATE users SET password=%s, reset_token=NULL, reset_token_expiry=NULL WHERE id=%s", (new_hashed_password, user_id))
-        conn.commit()
-    conn.close()
+# --- FLASK ROUTES (NAKADIKIT NA SA MGA HTML MO) ---
 
-def set_reset_token(email, token, expiry):
-    conn = get_connection()
-    with conn.cursor() as cur:
-        cur.execute("UPDATE users SET reset_token=%s, reset_token_expiry=%s WHERE email=%s", (token, expiry, email))
-        conn.commit()
-    conn.close()
+@app.route('/')
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        user = get_user_by_email(email)
+        
+        if user and user['password'] == password:
+            session['user_id'] = user['id']
+            session['user_name'] = user['fullname']
+            session['role'] = user['role']
+            flash('Login successful!', 'success')
+            return redirect(url_for('dashboard'))
+        else:
+            flash('Invalid email or password.', 'danger')
+            
+    return render_template('login.html')
 
-def get_user_by_reset_token(token):
-    conn = get_connection()
-    with conn.cursor() as cur:
-        user = cur.execute("SELECT * FROM users WHERE reset_token=%s", (token,)).fetchone()
-    conn.close()
-    return user
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        student_id = request.form.get('student_id')
+        fullname = request.form.get('fullname')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        role = request.form.get('role', 'Student')
+
+        conn = get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO users (student_id, fullname, email, password, role) VALUES (%s, %s, %s, %s, %s)",
+                    (student_id, fullname, email, password, role)
+                )
+                conn.commit()
+            conn.close()
+            flash('Registration successful! Please login.', 'success')
+            return redirect(url_for('login'))
+        except Exception as e:
+            conn.close()
+            flash('Error: Email or Student ID already exists.', 'danger')
+
+    return render_template('register.html')
+
+@app.route('/dashboard')
+def dashboard():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    hardware_list = get_all_hardware()
+    return render_template('dashboard.html', hardware=hardware_list)
+
+@app.route('/transactions')
+def transactions():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    # Student sees their own transactions, Admin sees all
+    if session.get('role') == 'Admin':
+        logs = get_transactions_ledger()
+    else:
+        logs = get_transactions_ledger(user_id=session['user_id'])
+        
+    return render_template('transactions.html', transactions=logs)
+
+@app.route('/profile')
+def profile():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    
+    user = get_user_profile(session['user_id'])
+    return render_template('profile.html', user=user)
+
+@app.route('/forgot', methods=['GET', 'POST'])
+def forgot():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        flash('If that email exists, reset instructions have been sent.', 'info')
+        return redirect(url_for('login'))
+    return render_template('forgot.html')
+
+@app.route('/reset', methods=['GET', 'POST'])
+@app.route('/reset_password', methods=['GET', 'POST'])
+def reset_password():
+    if request.method == 'POST':
+        flash('Password updated successfully!', 'success')
+        return redirect(url_for('login'))
+    return render_template('reset_password.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash('Logged out successfully.', 'info')
+    return redirect(url_for('login'))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
