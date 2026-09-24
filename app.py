@@ -21,27 +21,6 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# AUTO MIGRATION FOR POSTGRESQL
-def migrate_users_table():
-    try:
-        conn = psycopg.connect(DATABASE_URL)
-        with conn.cursor() as cur:
-            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS course TEXT DEFAULT '';")
-            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS section TEXT DEFAULT '';")
-            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS department TEXT DEFAULT '';")
-            conn.commit()
-        conn.close()
-    except Exception as e:
-        print("Migration info:", e)
-
-# SAFELY INITIALIZE DB TABLES ON APP STARTUP
-with app.app_context():
-    try:
-        lab.init_system()
-        migrate_users_table()
-    except Exception as e:
-        print("Startup Init Warning:", e)
-
 def get_db():
     db = getattr(g, '_database', None)
     if db is None:
@@ -54,6 +33,23 @@ def close(exception):
     if db:
         db.close()
 
+# Safe auto-init ng database tables sa unang request o startup
+@app.before_request
+def initialize_database():
+    if not hasattr(app, 'db_initialized'):
+        try:
+            conn = psycopg.connect(DATABASE_URL)
+            with conn.cursor() as cur:
+                cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS course TEXT DEFAULT '';")
+                cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS section TEXT DEFAULT '';")
+                cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS department TEXT DEFAULT '';")
+                conn.commit()
+            conn.close()
+            lab.init_system()
+            app.db_initialized = True
+        except Exception as e:
+            print("DB Init Error (Non-fatal):", e)
+
 @app.route('/')
 def index():
     return redirect('/login')
@@ -61,15 +57,18 @@ def index():
 @app.route('/login', methods=['GET','POST'])
 def login():
     if request.method == 'POST':
-        db = get_db()
-        with db.cursor() as cur:
-            user = cur.execute("SELECT * FROM users WHERE email=%s", (request.form['email'],)).fetchone()
-        if user and check_password_hash(user['password'], request.form['password']):
-            session['user_id'] = user['id']
-            session['role'] = user['role']
-            session['fullname'] = user['fullname']
-            return redirect('/dashboard')
-        flash('Invalid email or password', 'danger')
+        try:
+            db = get_db()
+            with db.cursor() as cur:
+                user = cur.execute("SELECT * FROM users WHERE email=%s", (request.form['email'],)).fetchone()
+            if user and check_password_hash(user['password'], request.form['password']):
+                session['user_id'] = user['id']
+                session['role'] = user['role']
+                session['fullname'] = user['fullname']
+                return redirect('/dashboard')
+            flash('Invalid email or password', 'danger')
+        except Exception as e:
+            flash(f'Database Connection Error: {e}', 'danger')
     return render_template('login.html')
 
 @app.route('/register', methods=['GET','POST'])
