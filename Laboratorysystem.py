@@ -5,10 +5,13 @@ from psycopg.rows import dict_row
 import logging
 from datetime import datetime, timedelta
 
-DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres.hudetzzomizjnygxkjqu:Cinley%40063004@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres')
+DATABASE_URL = os.environ.get(
+    'DATABASE_URL',
+    'postgresql://postgres.hudetzzomizjnygxkjqu:Cinley%40063004@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require'
+)
 
-os.makedirs('app_logging', exist_ok=True)
-logging.basicConfig(filename='app_logging/app.log', level=logging.INFO, format='%(asctime)s %(message)s')
+# Standard logging to stdout for cloud hosting compatibility
+logging.basicConfig(level=logging.INFO, format='%(asctime)s %(message)s')
 
 def get_connection():
     conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
