@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, g, Response
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 import psycopg
 from psycopg.rows import dict_row
 import Laboratorysystem as lab
@@ -12,7 +13,7 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'nu-lab-final-english-20
 
 DATABASE_URL = os.environ.get(
     'DATABASE_URL',
-    'postgresql://postgres.hudetzzomizjnygxkjqu:Cinley%40063004@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require'
+    'postgresql://postgres.hudetzzomizjnygxkjqu:Cinley%40063004@aws-0-ap-southeast-1.pooler.southeast-1.pooler.southeast-1.supabase.com:6543/postgres?sslmode=require'
 )
 
 UPLOAD_FOLDER = os.path.join('static', 'uploads', 'profile')
@@ -23,10 +24,27 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+lab.init_system()
+
+# AUTO MIGRATION (PostgreSQL Compatible)
+def migrate_users_table():
+    try:
+        conn = lab.get_connection()
+        with conn.cursor() as cur:
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS course TEXT DEFAULT '';")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS section TEXT DEFAULT '';")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS department TEXT DEFAULT '';")
+            conn.commit()
+        conn.close()
+    except Exception as e:
+        print("Migration:", e)
+
+migrate_users_table()
+
 def get_db():
     db = getattr(g, '_database', None)
     if db is None:
-        db = g._database = psycopg.connect(DATABASE_URL, row_factory=dict_row)
+        db = g._database = lab.get_connection()
     return db
 
 @app.teardown_appcontext
@@ -35,23 +53,6 @@ def close(exception):
     if db:
         db.close()
 
-# Safe auto-init ng database tables at karagdagang mga kolum sa startup
-@app.before_request
-def initialize_database():
-    if not hasattr(app, 'db_initialized'):
-        try:
-            conn = psycopg.connect(DATABASE_URL)
-            with conn.cursor() as cur:
-                cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS course TEXT DEFAULT '';")
-                cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS section TEXT DEFAULT '';")
-                cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS department TEXT DEFAULT '';")
-                conn.commit()
-            conn.close()
-            lab.init_system()
-            app.db_initialized = True
-        except Exception as e:
-            print("DB Init Error (Non-fatal):", e)
-
 @app.route('/')
 def index():
     return redirect('/login')
@@ -59,20 +60,18 @@ def index():
 @app.route('/login', methods=['GET','POST'])
 def login():
     if request.method == 'POST':
-        try:
-            db = get_db()
-            with db.cursor() as cur:
-                user = cur.execute("SELECT * FROM users WHERE email=%s", (request.form['email'],)).fetchone()
-            if user and check_password_hash(user['password'], request.form['password']):
-                session['user_id'] = user['id']
-                session['role'] = user['role']
-                session['fullname'] = user['fullname']
-                return redirect('/dashboard')
-            flash('Invalid email or password', 'danger')
-        except Exception as e:
-            flash(f'Database Connection Error: {e}', 'danger')
+        db = get_db()
+        with db.cursor() as cur:
+            user = cur.execute("SELECT * FROM users WHERE email=%s", (request.form['email'],)).fetchone()
+        if user and check_password_hash(user['password'], request.form['password']):
+            session['user_id'] = user['id']
+            session['role'] = user['role']
+            session['fullname'] = user['fullname']
+            return redirect('/dashboard')
+        flash('Invalid email or password', 'danger')
     return render_template('login.html')
 
+# ===== FIXED REGISTER - 8 CHARS STANDARD + DEPARTMENT =====
 @app.route('/register', methods=['GET','POST'])
 def register():
     if request.method == 'POST':
@@ -80,6 +79,7 @@ def register():
         role = request.form['role']
         password = request.form['password']
 
+        # STANDARD 8 CHARS
         if len(password) < 8:
             flash('Password must be at least 8 characters (standard)', 'danger')
             return render_template('register.html')
@@ -101,11 +101,11 @@ def register():
                 """, (request.form['student_id'], request.form['fullname'], request.form['email'],
                       generate_password_hash(password), role, course, section, department))
                 db.commit()
-            flash(f'Account created! {department} - {section}', 'success')
+            flash(f'Account created! {department} - {section} (8 chars password OK)', 'success')
             return redirect('/login')
         except Exception as e:
             print(e)
-            flash('Email or Student ID already exists', 'danger')
+            flash('Email or ID already exists', 'danger')
     return render_template('register.html')
 
 @app.route('/logout')
@@ -194,6 +194,7 @@ def profile():
         stats = cur.execute("SELECT COUNT(*) as total, SUM(CASE WHEN status='Pending' THEN 1 ELSE 0 END) as pending FROM transactions WHERE user_id=%s", (session['user_id'],)).fetchone()
     return render_template('profile.html', user=user, stats=stats)
 
+# ===== RESET PASSWORD - 8 CHARS STANDARD (NEED LOGIN) =====
 @app.route('/reset_password', methods=['GET','POST'])
 def reset_password():
     if 'user_id' not in session:
@@ -211,7 +212,7 @@ def reset_password():
         else:
             hashed = generate_password_hash(request.form['new_password'])
             lab.update_password(session['user_id'], hashed)
-            flash('Password updated! Please login again.', 'success')
+            flash('Password updated! Please login again. (8 chars OK)', 'success')
             return redirect('/logout')
     return render_template('reset_password.html')
 
@@ -219,6 +220,7 @@ def reset_password():
 def reset_alias():
     return redirect('/reset_password')
 
+# ===== NEW: FORGOT PASSWORD - PUBLIC, NO LOGIN NEEDED =====
 @app.route('/forgot', methods=['GET','POST'])
 def forgot():
     db = get_db()
@@ -255,13 +257,7 @@ def forgot_password_alias():
 def borrow():
     if 'user_id' not in session:
         return redirect('/login')
-    ok, msg = lab.request_borrow(
-        session['user_id'], 
-        int(request.form['hw_id']), 
-        int(request.form['qty']), 
-        int(request.form['days']), 
-        request.form.get('remarks', '')
-    )
+    ok, msg = lab.request_borrow(session['user_id'], int(request.form['hw_id']), int(request.form['qty']), int(request.form['days']), request.form['remarks'])
     flash(msg, 'success' if ok else 'danger')
     return redirect('/dashboard')
 
@@ -283,51 +279,35 @@ def user_pay(id):
 
 @app.route('/admin/approve/<int:id>')
 def approve(id):
-    if 'user_id' not in session or session.get('role') in ['student', 'employee']:
-        flash('Unauthorized access', 'danger')
-        return redirect('/dashboard')
+    if 'user_id' not in session:
+        return redirect('/login')
     ok, msg = lab.approve_borrow(id, session['user_id'])
     flash(msg, 'success' if ok else 'danger')
     return redirect('/dashboard')
 
 @app.route('/admin/check_return/<int:id>', methods=['POST'])
 def check_return(id):
-    if 'user_id' not in session or session.get('role') in ['student', 'employee']:
-        flash('Unauthorized access', 'danger')
-        return redirect('/dashboard')
-    lab.admin_check_return(
-        id, 
-        request.form['condition'], 
-        request.form.get('damage_remarks',''), 
-        float(request.form.get('payment', 0))
-    )
+    if 'user_id' not in session:
+        return redirect('/login')
+    lab.admin_check_return(id, request.form['condition'], request.form.get('damage_remarks',''), float(request.form.get('payment',0)))
     flash(f"Return checked as {request.form['condition']}", 'success')
     return redirect('/dashboard')
 
 @app.route('/admin/add_stock', methods=['POST'])
 def add_stock():
-    if 'user_id' not in session or session.get('role') in ['student', 'employee']:
-        flash('Unauthorized access', 'danger')
-        return redirect('/dashboard')
+    if 'user_id' not in session:
+        return redirect('/login')
     qty = int(request.form.get('quantity', 0) or 0)
     if qty < 0:
-        flash("Quantity cannot be negative!", "danger")
+        flash("Quantity cannot be negative, but 0 allowed!", "danger")
         return redirect('/dashboard')
-    lab.add_or_restock_hardware(
-        request.form['name'], 
-        request.form['category'], 
-        qty, 
-        request.form.get('location', ''), 
-        float(request.form.get('unit_price', 0) or 0), 
-        session['user_id']
-    )
+    lab.add_or_restock_hardware(request.form['name'], request.form['category'], qty, request.form['location'], float(request.form.get('unit_price',0) or 0), session['user_id'])
     flash(f'Stock added! Qty: {qty}', 'success')
     return redirect('/dashboard')
 
 @app.route('/admin/edit/<int:id>', methods=['POST'])
 def edit_item(id):
-    if 'user_id' not in session or session.get('role') in ['student', 'employee']:
-        flash('Unauthorized access', 'danger')
+    if session.get('role') in ['student','employee']:
         return redirect('/dashboard')
     db = get_db()
     with db.cursor() as cur:
@@ -341,7 +321,6 @@ def edit_item(id):
         unit_price = float(request.form.get('unit_price', old['unit_price']) or 0)
         total_qty = int(request.form.get('total_quantity', old['total_quantity']) or 0)
         avail = int(request.form.get('available', old['available']) or 0)
-        
         if total_qty < 0 or avail < 0:
             flash("0 is allowed, negative not!", "danger")
             return redirect('/dashboard')
@@ -351,22 +330,17 @@ def edit_item(id):
         if avail > total_qty:
             flash("Ending cannot be > Beginning", "danger")
             return redirect('/dashboard')
-            
         new_borrowed = total_qty - avail
-        cur.execute("""
-            UPDATE hardware 
-            SET name=%s, category=%s, location=%s, unit_price=%s, total_quantity=%s, available=%s, borrowed=%s 
-            WHERE id=%s
-        """, (name, category, location, unit_price, total_qty, avail, new_borrowed, id))
+        cur.execute("UPDATE hardware SET name=%s, category=%s, location=%s, unit_price=%s, total_quantity=%s, available=%s, borrowed=%s WHERE id=%s",
+                    (name, category, location, unit_price, total_qty, avail, new_borrowed, id))
         db.commit()
-    flash(f'Updated! Beg:{total_qty} End:{avail}', 'success')
+    flash(f'Updated! Beg:{total_qty} End:{avail} (0=Out of Stock)', 'success')
     return redirect('/dashboard')
 
 @app.route('/admin/delete/<int:id>')
 def delete_item(id):
-    if 'user_id' not in session or session.get('role') in ['student', 'employee']:
-        flash('Unauthorized access', 'danger')
-        return redirect('/dashboard')
+    if 'user_id' not in session:
+        return redirect('/login')
     lab.delete_hardware(id)
     flash('Item deleted!', 'danger')
     return redirect('/dashboard')
@@ -380,10 +354,10 @@ def export_csv():
         hw = cur.execute("SELECT * FROM hardware").fetchall()
     si = StringIO()
     w = csv.writer(si)
-    w.writerow(['ID', 'Equipment', 'Category', 'Beginning', 'Borrowed', 'Ending', 'Unit Price', 'Location'])
+    w.writerow(['ID','Equipment','Category','Beginning','Borrowed','Ending','Unit Price','Location'])
     for h in hw:
         w.writerow([h['id'], h['name'], h['category'], h['total_quantity'], h['borrowed'], h['available'], h['unit_price'], h['location']])
-    return Response(si.getvalue(), mimetype="text/csv", headers={"Content-Disposition": "attachment;filename=inventory.csv"})
+    return Response(si.getvalue(), mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=inventory.csv"})
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
