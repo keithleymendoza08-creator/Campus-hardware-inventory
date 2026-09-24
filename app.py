@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session, g, Response
+ffrom flask import Flask, render_template, request, redirect, url_for, flash, session, g, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import psycopg
@@ -11,7 +11,10 @@ import os
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'nu-lab-final-english-2026')
 
-DATABASE_URL = os.environ.get('DATABASE_URL', 'postgresql://postgres.hudetzzomizjnygxkjqu:Cinley%40063004@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres')
+DATABASE_URL = os.environ.get(
+    'DATABASE_URL',
+    'postgresql://postgres.hudetzzomizjnygxkjqu:Cinley%40063004@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require'
+)
 
 UPLOAD_FOLDER = os.path.join('static', 'uploads', 'profile')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
