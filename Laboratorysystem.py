@@ -1,10 +1,16 @@
 # Laboratorysystem.py - NU Laboratory Hardware System (Supabase PostgreSQL Version)
 import os
-import psycopg
-from psycopg.rows import dict_row
 import logging
 from datetime import datetime, timedelta
+import psycopg
+from psycopg.rows import dict_row
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 
+# --- FLASK APP INITIALIZATION ---
+app = Flask(__name__)
+app.secret_key = os.environ.get('SECRET_KEY', 'super-secret-key-change-this')
+
+# Fetch DATABASE_URL from Render Environment Variables
 DATABASE_URL = os.environ.get(
     'DATABASE_URL',
     'postgresql://postgres.hudetzzomizjnygxkjqu:Cinley%40063004@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require'
@@ -18,55 +24,70 @@ def get_connection():
     return conn
 
 def init_system():
-    conn = get_connection()
-    with conn.cursor() as cur:
-        cur.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                student_id TEXT UNIQUE NOT NULL,
-                fullname TEXT NOT NULL,
-                email TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL,
-                role TEXT NOT NULL,
-                profile_pic TEXT DEFAULT 'default.png',
-                reset_token TEXT DEFAULT NULL,
-                reset_token_expiry TIMESTAMP DEFAULT NULL
-            );
-            CREATE TABLE IF NOT EXISTS hardware (
-                id SERIAL PRIMARY KEY,
-                name TEXT UNIQUE NOT NULL,
-                category TEXT DEFAULT 'General',
-                total_quantity INTEGER DEFAULT 0,
-                available INTEGER DEFAULT 0,
-                borrowed INTEGER DEFAULT 0,
-                unit_price REAL DEFAULT 0,
-                location TEXT DEFAULT 'Lab A'
-            );
-            CREATE TABLE IF NOT EXISTS transactions (
-                id SERIAL PRIMARY KEY,
-                user_id INTEGER,
-                hardware_id INTEGER,
-                type TEXT,
-                beginning_balance INTEGER,
-                quantity INTEGER,
-                ending_balance INTEGER,
-                borrow_days INTEGER DEFAULT 3,
-                expected_return DATE,
-                actual_return DATE,
-                status TEXT DEFAULT 'Pending',
-                return_status TEXT DEFAULT 'Pending',
-                damage_status TEXT DEFAULT 'Good',
-                damage_remarks TEXT,
-                payment_amount REAL DEFAULT 0,
-                payment_status TEXT DEFAULT 'None',
-                remarks TEXT,
-                date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                date_approved TIMESTAMP,
-                approved_by INTEGER
-            );
-        ''')
-    conn.commit()
-    conn.close()
+    try:
+        conn = get_connection()
+        with conn.cursor() as cur:
+            cur.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    student_id TEXT UNIQUE NOT NULL,
+                    fullname TEXT NOT NULL,
+                    email TEXT UNIQUE NOT NULL,
+                    password TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    profile_pic TEXT DEFAULT 'default.png',
+                    reset_token TEXT DEFAULT NULL,
+                    reset_token_expiry TIMESTAMP DEFAULT NULL
+                );
+                CREATE TABLE IF NOT EXISTS hardware (
+                    id SERIAL PRIMARY KEY,
+                    name TEXT UNIQUE NOT NULL,
+                    category TEXT DEFAULT 'General',
+                    total_quantity INTEGER DEFAULT 0,
+                    available INTEGER DEFAULT 0,
+                    borrowed INTEGER DEFAULT 0,
+                    unit_price REAL DEFAULT 0,
+                    location TEXT DEFAULT 'Lab A'
+                );
+                CREATE TABLE IF NOT EXISTS transactions (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER,
+                    hardware_id INTEGER,
+                    type TEXT,
+                    beginning_balance INTEGER,
+                    quantity INTEGER,
+                    ending_balance INTEGER,
+                    borrow_days INTEGER DEFAULT 3,
+                    expected_return DATE,
+                    actual_return DATE,
+                    status TEXT DEFAULT 'Pending',
+                    return_status TEXT DEFAULT 'Pending',
+                    damage_status TEXT DEFAULT 'Good',
+                    damage_remarks TEXT,
+                    payment_amount REAL DEFAULT 0,
+                    payment_status TEXT DEFAULT 'None',
+                    remarks TEXT,
+                    date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    date_approved TIMESTAMP,
+                    approved_by INTEGER
+                );
+            ''')
+            conn.commit()
+        conn.close()
+        logging.info("Database initialized successfully.")
+    except Exception as e:
+        logging.error(f"Database initialization error: {e}")
+
+# Automatically initialize database tables on startup
+try:
+    init_system()
+except Exception as e:
+    logging.warning(f"DB Init Error (Non-fatal during startup): {e}")
+
+# --- SAMPLE FLASK ROUTES ---
+@app.route('/')
+def index():
+    return "NU Laboratory Hardware System API / Web Service is Running!"
 
 # --- USER BORROW/RETURN ---
 def request_borrow(user_id, hw_id, qty, days, remarks):
@@ -240,3 +261,6 @@ def get_user_by_reset_token(token):
         user = cur.execute("SELECT * FROM users WHERE reset_token=%s", (token,)).fetchone()
     conn.close()
     return user
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
