@@ -6,16 +6,32 @@
         <h2 class="fw-bold mb-0">Borrow & Return Management 🔄</h2>
         <p class="text-muted small mb-0">Track all ongoing borrows, pending requests, and item returns with Beg / End Balance Ledger.</p>
     </div>
-    <a href="/dashboard" class="btn btn-outline-secondary fw-bold px-3">
+    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary fw-bold px-3">
         Back to Dashboard
     </a>
 </div>
 
 <!-- SUMMARY CARDS -->
+{% set items = logs if logs is defined else borrows %}
 <div class="row g-3 mb-4">
-    <div class="col-md-4"><div class="card p-3 border-0 shadow-sm" style="border-left:4px solid #35408E!important"><small class="text-muted">Total Transactions</small><h4 class="fw-bold mb-0">{{ (logs if logs is defined else borrows)|length }}</h4></div></div>
-    <div class="col-md-4"><div class="card p-3 border-0 shadow-sm" style="border-left:4px solid orange!important"><small class="text-muted">Pending Borrow</small><h4 class="fw-bold mb-0">{{ (logs if logs is defined else borrows)|selectattr('status','equalto','Pending')|list|length }}</h4></div></div>
-    <div class="col-md-4"><div class="card p-3 border-0 shadow-sm" style="border-left:4px solid green!important"><small class="text-muted">For Checking Return</small><h4 class="fw-bold mb-0">{{ (logs if logs is defined else borrows)|selectattr('return_status','equalto','For Checking')|list|length }}</h4></div></div>
+    <div class="col-md-4">
+        <div class="card p-3 border-0 shadow-sm" style="border-left:4px solid #35408E!important">
+            <small class="text-muted">Total Transactions</small>
+            <h4 class="fw-bold mb-0">{{ items|length }}</h4>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card p-3 border-0 shadow-sm" style="border-left:4px solid orange!important">
+            <small class="text-muted">Pending Borrow</small>
+            <h4 class="fw-bold mb-0">{{ items|selectattr('status','defined')|selectattr('status','in',['Pending', 'PENDING_BORROW'])|list|length }}</h4>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card p-3 border-0 shadow-sm" style="border-left:4px solid green!important">
+            <small class="text-muted">For Checking Return</small>
+            <h4 class="fw-bold mb-0">{{ items|selectattr('return_status','defined')|selectattr('return_status','equalto','For Checking')|list|length }}</h4>
+        </div>
+    </div>
 </div>
 
 <!-- TRANSACTIONS TABLE -->
@@ -41,17 +57,16 @@
                 </tr>
             </thead>
             <tbody>
-                {% set items = logs if logs is defined else borrows %}
                 {% for b in items %}
                 <tr>
                     <td class="text-muted">#{{ b.transaction_id if b.transaction_id is defined else b.id }}</td>
                     <td class="fw-bold">{{ b.borrower_name if b.borrower_name is defined else b.fullname if b.fullname is defined else b.username }}</td>
                     <td>
                         {% if b.department %}
-                        <span class="badge" style="background:#35408E; font-size:9px;">{{ b.department }}</span><br>
-                        <span class="badge bg-secondary" style="font-size:9px;">{{ b.section }}</span>
+                            <span class="badge" style="background:#35408E; font-size:9px;">{{ b.department }}</span><br>
+                            <span class="badge bg-secondary" style="font-size:9px;">{{ b.section }}</span>
                         {% else %}
-                        <span class="badge bg-light text-dark border" style="font-size:9px;">{{ b.role|upper if b.role is defined else 'N/A' }}</span>
+                            <span class="badge bg-light text-dark border" style="font-size:9px;">{{ b.role|upper if b.role is defined else 'N/A' }}</span>
                         {% endif %}
                     </td>
                     <td>
@@ -60,23 +75,24 @@
                     </td>
                     <td><span class="badge bg-light text-dark border">{{ b.beginning_balance if b.beginning_balance is defined else '-' }}</span></td>
                     <td>
+                        {% set qty = b.quantity|abs %}
                         {% if b.type == 'BORROW' or b.status in ['Pending','Approved','BORROWED','PENDING_BORROW'] %}
-                            <span class="text-danger fw-bold">-{{ b.quantity }}</span>
+                            <span class="text-danger fw-bold">-{{ qty }}</span>
                         {% else %}
-                            <span class="text-success fw-bold">+{{ b.quantity }}</span>
+                            <span class="text-success fw-bold">+{{ qty }}</span>
                         {% endif %}
                     </td>
                     <td><span class="badge bg-primary">{{ b.ending_balance if b.ending_balance is defined else '-' }}</span></td>
                     <td>
-                      {% if b.request_date is defined %}
-                        {{ b.request_date }}
-                      {% elif b.date_created is defined %}
-                        {{ b.date_created|string|truncate(16, True, '') }}
-                      {% elif b.borrow_date is defined %}
-                        {{ b.borrow_date }}
-                      {% else %}
-                        -
-                      {% endif %}
+                        {% if b.request_date is defined %}
+                            {{ b.request_date }}
+                        {% elif b.date_created is defined %}
+                            {{ b.date_created|string|truncate(16, True, '') }}
+                        {% elif b.borrow_date is defined %}
+                            {{ b.borrow_date }}
+                        {% else %}
+                            -
+                        {% endif %}
                     </td>
                     <td>
                         {% if b.expected_return %}
@@ -85,13 +101,13 @@
                         {% else %}-{% endif %}
                     </td>
                     <td>
-                        {% if b.status == 'APPROVED' or b.status == 'BORROWED' or b.status == 'Approved' %}
+                        {% if b.status in ['APPROVED', 'BORROWED', 'Approved'] %}
                             <span class="badge bg-success-subtle text-success px-3 py-2 rounded-pill">● Borrowed</span>
-                        {% elif b.status == 'PENDING_BORROW' or b.status == 'Pending' %}
+                        {% elif b.status in ['PENDING_BORROW', 'Pending'] %}
                             <span class="badge bg-primary-subtle text-primary px-3 py-2 rounded-pill">● Pending Borrow</span>
                         {% elif b.status == 'PENDING_RETURN' or b.return_status == 'For Checking' %}
                             <span class="badge bg-warning-subtle text-warning px-3 py-2 rounded-pill">● Pending Return</span>
-                        {% elif b.status == 'RETURNED' or b.status == 'Returned' %}
+                        {% elif b.status in ['RETURNED', 'Returned'] %}
                             <span class="badge bg-secondary-subtle text-secondary px-3 py-2 rounded-pill">● Returned</span>
                         {% elif b.status == 'Rejected' %}
                             <span class="badge bg-danger-subtle text-danger px-3 py-2 rounded-pill">● Rejected</span>
@@ -109,10 +125,10 @@
                     </td>
                     {% if session.get('role') not in ['student','employee'] %}
                     <td class="text-end">
-                        {% if b.status == 'PENDING_BORROW' or b.status == 'Pending' %}
-                            <a href="/admin/approve/{{ b.id }}" class="btn btn-sm btn-success fw-bold">Approve Borrow</a>
+                        {% if b.status in ['PENDING_BORROW', 'Pending'] %}
+                            <a href="{{ url_for('approve_borrow', id=b.id) if 'approve_borrow' in endpoints else '/admin/approve/' ~ b.id }}" class="btn btn-sm btn-success fw-bold">Approve Borrow</a>
                         {% elif b.return_status == 'For Checking' %}
-                            <a href="/dashboard" class="btn btn-sm btn-info text-white fw-bold">Check in Dashboard</a>
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-sm btn-info text-white fw-bold">Check in Dashboard</a>
                         {% else %}
                             <span class="text-muted small">No action needed</span>
                         {% endif %}
@@ -121,7 +137,9 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="12" class="text-center py-4 text-muted">No transaction records found.</td>
+                    <td colspan="{% if session.get('role') not in ['student','employee'] %}12{% else %}11{% endif %}" class="text-center py-4 text-muted">
+                        No transaction records found.
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -130,7 +148,7 @@
 </div>
 
 <div class="card p-3 mt-3 border-0 shadow-sm bg-light small">
-<b>Ledger Formula:</b> Beginning Balance (before) - Borrowed Qty = Ending Balance (after).<br>
-Example: Beg 20 - Qty 5 = End 15. On Return: Beg 15 + Qty 5 = End 20.
+    <b>Ledger Formula:</b> Beginning Balance (before) - Borrowed Qty = Ending Balance (after).<br>
+    Example: Beg 20 - Qty 5 = End 15. On Return: Beg 15 + Qty 5 = End 20.
 </div>
 {% endblock %}
