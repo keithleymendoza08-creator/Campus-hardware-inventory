@@ -67,7 +67,17 @@
                         {% endif %}
                     </td>
                     <td><span class="badge bg-primary">{{ b.ending_balance if b.ending_balance is defined else '-' }}</span></td>
-                    <td>{{ b.request_date if b.request_date is defined else b.date_created[:16] if b.date_created is defined else b.borrow_date }}</td>
+                    <td>
+                      {% if b.request_date is defined %}
+                        {{ b.request_date }}
+                      {% elif b.date_created is defined %}
+                        {{ b.date_created|string|truncate(16, True, '') }}
+                      {% elif b.borrow_date is defined %}
+                        {{ b.borrow_date }}
+                      {% else %}
+                        -
+                      {% endif %}
+                    </td>
                     <td>
                         {% if b.expected_return %}
                             <span class="badge bg-info">{{ b.expected_return }}</span><br>
