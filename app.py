@@ -7,6 +7,9 @@ import Laboratorysystem as lab
 from io import StringIO
 import csv
 import os
+import random
+import smtplib
+from email.mime.text import MIMEText
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'nu-lab-final-english-2026')
@@ -15,6 +18,30 @@ DATABASE_URL = os.environ.get(
     'DATABASE_URL',
     'postgresql://postgres.hudetzzomizjnygxkjqu:Cinley%40063004@aws-0-ap-southeast-1.pooler.southeast-1.pooler.southeast-1.supabase.com:6543/postgres?sslmode=require'
 )
+
+# --- BREVO SMTP CONFIGURATION ---
+SMTP_SERVER = os.environ.get('SMTP_SERVER', 'smtp-relay.brevo.com')
+SMTP_PORT = int(os.environ.get('SMTP_PORT', 587))  # Port 587 or 2525
+SMTP_LOGIN = os.environ.get('SMTP_LOGIN', '')      # Brevo Login Email
+SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')  # Brevo Master Password
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', SMTP_LOGIN)
+
+def send_otp_email(receiver_email, otp, intent):
+    """Sends a 6-digit OTP using Brevo SMTP."""
+    msg = MIMEText(f"Your {intent} One-Time Password (OTP) is: {otp}\n\nPlease enter this code to proceed. Do not share this code with anyone.")
+    msg['Subject'] = f"Laboratory System - {intent} OTP"
+    msg['From'] = f"Laboratory System <{SENDER_EMAIL}>"
+    msg['To'] = receiver_email
+    
+    try:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_LOGIN, SMTP_PASSWORD)
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        print(f"Email Error: {e}")
+        return False
 
 UPLOAD_FOLDER = os.path.join('static', 'uploads', 'profile')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -71,42 +98,151 @@ def login():
         flash('Invalid email or password', 'danger')
     return render_template('login.html')
 
-# ===== FIXED REGISTER - 8 CHARS STANDARD + DEPARTMENT =====
+# ===== REGISTER WITH OTP =====
 @app.route('/register', methods=['GET','POST'])
 def register():
-    if request.method == 'POST':
-        db = get_db()
-        role = request.form['role']
-        password = request.form['password']
+    if request.method == 'GET':
+        return render_template('register.html')
 
-        # STANDARD 8 CHARS
-        if len(password) < 8:
-            flash('Password must be at least 8 characters (standard)', 'danger')
+    db = get_db()
+    student_id = request.form.get('student_id', '').strip()
+    fullname = request.form.get('fullname', '').strip()
+    email = request.form.get('email', '').strip()
+    password = request.form.get('password', '').strip()
+    role = request.form.get('role', '').strip()
+
+    if len(password) < 8:
+        flash('Password must be at least 8 characters (standard)', 'danger')
+        return render_template('register.html')
+
+    department = request.form.get('department','').strip()
+    section = request.form.get('section','').strip()
+    course = department if role == 'student' else request.form.get('course','').strip()
+
+    if role in ['student', 'employee']:
+        if not department or not section:
+            flash('Please select Department and Section', 'danger')
             return render_template('register.html')
 
-        department = request.form.get('department','').strip()
-        section = request.form.get('section','').strip()
-        course = department if role == 'student' else request.form.get('course','').strip()
+    # Generate OTP and store details temporarily in session
+    otp = str(random.randint(100000, 999999))
+    session['pending_user'] = {
+        'student_id': student_id,
+        'fullname': fullname,
+        'email': email,
+        'password': password,
+        'role': role,
+        'course': course,
+        'section': section,
+        'department': department,
+        'otp': otp
+    }
 
-        if role in ['student', 'employee']:
-            if not department or not section:
-                flash('Please select Department and Section', 'danger')
-                return render_template('register.html')
+    if send_otp_email(email, otp, intent="Account Registration"):
+        flash("We sent a 6-digit code to your email. Please verify.", "info")
+        return redirect(url_for("verify_otp", action="register"))
+    else:
+        flash("Failed to send OTP email. Please check SMTP settings.", "danger")
+        return render_template('register.html')
 
-        try:
-            with db.cursor() as cur:
-                cur.execute("""
-                    INSERT INTO users (student_id, fullname, email, password, role, course, section, department)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-                """, (request.form['student_id'], request.form['fullname'], request.form['email'],
-                      generate_password_hash(password), role, course, section, department))
-                db.commit()
-            flash(f'Account created! {department} - {section} (8 chars password OK)', 'success')
-            return redirect('/login')
-        except Exception as e:
-            print(e)
-            flash('Email or ID already exists', 'danger')
-    return render_template('register.html')
+# ===== RESET / FORGOT PASSWORD WITH OTP =====
+@app.route('/reset-request', methods=['GET', 'POST'])
+def reset_request():
+    if request.method == 'GET':
+        return render_template('reset.html')
+
+    email = request.form.get('email', '').strip()
+    new_password = request.form.get('new_password', '').strip()
+    confirm_password = request.form.get('confirm_password', '').strip()
+
+    if not email or not new_password or not confirm_password:
+        flash('All reset fields are required.', 'danger')
+        return redirect(url_for('reset_request'))
+
+    if len(new_password) < 8:
+        flash('Password must be at least 8 characters.', 'danger')
+        return redirect(url_for('reset_request'))
+
+    if new_password != confirm_password:
+        flash('New passwords do not match.', 'danger')
+        return redirect(url_for('reset_request'))
+
+    db = get_db()
+    with db.cursor() as cur:
+        user = cur.execute("SELECT * FROM users WHERE email=%s", (email,)).fetchone()
+        if not user:
+            flash('Email address not found.', 'danger')
+            return redirect(url_for('reset_request'))
+
+    # Generate OTP and save to session
+    otp = str(random.randint(100000, 999999))
+    session['pending_reset'] = {
+        'email': email,
+        'new_password': new_password,
+        'otp': otp
+    }
+
+    if send_otp_email(email, otp, intent="Password Reset"):
+        flash("We sent a 6-digit code to your email. Please verify.", "info")
+        return redirect(url_for("verify_otp", action="reset"))
+    else:
+        flash("Failed to send OTP email. Please try again.", "danger")
+        return redirect(url_for("reset_request"))
+
+# ===== VERIFY OTP ROUTE =====
+@app.route('/verify-otp/<action>', methods=['GET', 'POST'])
+def verify_otp(action):
+    session_key = 'pending_user' if action == 'register' else 'pending_reset'
+
+    if session_key not in session:
+        flash("Session expired. Please try again.", "warning")
+        return redirect(url_for("login"))
+
+    if request.method == "POST":
+        user_otp = request.form.get("otp_code", "").strip()
+        data = session[session_key]
+
+        if user_otp == data['otp']:
+            db = get_db()
+            if action == "register":
+                try:
+                    with db.cursor() as cur:
+                        cur.execute("""
+                            INSERT INTO users (student_id, fullname, email, password, role, course, section, department)
+                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+                        """, (data['student_id'], data['fullname'], data['email'],
+                              generate_password_hash(data['password']), data['role'],
+                              data['course'], data['section'], data['department']))
+                        db.commit()
+                    session.pop(session_key, None)
+                    flash("Account successfully verified and created! Please login.", "success")
+                    return redirect(url_for("login"))
+                except Exception as e:
+                    print("Registration Error:", e)
+                    flash("Email or ID already exists.", "danger")
+                    return redirect(url_for("register"))
+
+            elif action == "reset":
+                try:
+                    hashed = generate_password_hash(data['new_password'])
+                    with db.cursor() as cur:
+                        cur.execute("UPDATE users SET password=%s WHERE email=%s", (hashed, data['email']))
+                        db.commit()
+                    session.pop(session_key, None)
+                    flash("Password successfully reset! You can now login.", "success")
+                    return redirect(url_for("login"))
+                except Exception as e:
+                    print("Reset Error:", e)
+                    flash("Failed to update password. Please try again.", "danger")
+                    return redirect(url_for("reset_request"))
+        else:
+            flash("Invalid OTP code. Try again.", "danger")
+
+    return render_template("otp_verify.html", action_url=url_for('verify_otp', action=action))
+
+@app.route('/forgot')
+def forgot_alias():
+    return redirect(url_for('reset_request'))
 
 @app.route('/logout')
 def logout():
@@ -193,65 +329,6 @@ def profile():
         user = cur.execute("SELECT * FROM users WHERE id=%s", (session['user_id'],)).fetchone()
         stats = cur.execute("SELECT COUNT(*) as total, SUM(CASE WHEN status='Pending' THEN 1 ELSE 0 END) as pending FROM transactions WHERE user_id=%s", (session['user_id'],)).fetchone()
     return render_template('profile.html', user=user, stats=stats)
-
-# ===== RESET PASSWORD - 8 CHARS STANDARD (NEED LOGIN) =====
-@app.route('/reset_password', methods=['GET','POST'])
-def reset_password():
-    if 'user_id' not in session:
-        return redirect('/login')
-    if request.method == 'POST':
-        db = get_db()
-        with db.cursor() as cur:
-            user = cur.execute("SELECT * FROM users WHERE id=%s", (session['user_id'],)).fetchone()
-        if not check_password_hash(user['password'], request.form['current_password']):
-            flash('Current password is incorrect', 'danger')
-        elif request.form['new_password'] != request.form['confirm_password']:
-            flash('New passwords do not match', 'danger')
-        elif len(request.form['new_password']) < 8:
-            flash('Password must be at least 8 characters (standard)', 'danger')
-        else:
-            hashed = generate_password_hash(request.form['new_password'])
-            lab.update_password(session['user_id'], hashed)
-            flash('Password updated! Please login again. (8 chars OK)', 'success')
-            return redirect('/logout')
-    return render_template('reset_password.html')
-
-@app.route('/reset')
-def reset_alias():
-    return redirect('/reset_password')
-
-# ===== NEW: FORGOT PASSWORD - PUBLIC, NO LOGIN NEEDED =====
-@app.route('/forgot', methods=['GET','POST'])
-def forgot():
-    db = get_db()
-    if request.method == 'POST':
-        email = request.form.get('email','').strip()
-        new_pass = request.form.get('new_password','')
-        confirm = request.form.get('confirm_password','')
-
-        if len(new_pass) < 8:
-            flash('Password must be at least 8 characters (standard)', 'danger')
-            return render_template('forgot.html')
-        if new_pass != confirm:
-            flash('Passwords do not match', 'danger')
-            return render_template('forgot.html')
-
-        with db.cursor() as cur:
-            user = cur.execute("SELECT * FROM users WHERE email=%s", (email,)).fetchone()
-            if not user:
-                flash('Email not found', 'danger')
-                return render_template('forgot.html')
-
-            hashed = generate_password_hash(new_pass)
-            cur.execute("UPDATE users SET password=%s WHERE email=%s", (hashed, email))
-            db.commit()
-        flash('Password reset success! You can now login.', 'success')
-        return redirect('/login')
-    return render_template('forgot.html')
-
-@app.route('/forgot_password')
-def forgot_password_alias():
-    return redirect('/forgot')
 
 @app.route('/borrow', methods=['POST'])
 def borrow():

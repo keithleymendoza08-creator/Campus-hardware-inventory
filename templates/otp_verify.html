@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Verify Email | Laboratory System{% endblock %}
+
+{% block content %}
+<section class="auth-page">
+  <div class="auth-card" style="margin: 0 auto; max-width: 440px;">
+    <div class="card-heading text-center mb-3">
+      <p class="eyebrow text-uppercase text-muted small fw-bold mb-1">Two-Step Verification</p>
+      <h2 class="fw-bold" style="color:#35408E;">Verify Your Email</h2>
+      <p class="muted small text-secondary">Enter the 6-digit code sent to your email address.</p>
+    </div>
+
+    <form method="post" action="{{ action_url }}" class="auth-form">
+      <div class="mb-3">
+        <label for="otp_code" class="form-label small fw-bold">Enter 6-Digit Code</label>
+        <div class="input-wrap input-group">
+          <span class="input-group-text">🔢</span>
+          <input 
+            id="otp_code" 
+            name="otp_code" 
+            class="form-control"
+            maxlength="6" 
+            pattern="\d{6}" 
+            placeholder="123456" 
+            required 
+            autofocus 
+            style="letter-spacing: 6px; font-size: 1.25rem; font-weight: bold; text-align: center;"
+          >
+        </div>
+      </div>
+      <button class="primary wide btn btn-nu w-100 text-white fw-bold" type="submit" style="background:#35408E;">Verify Code <span>→</span></button>
+    </form>
+
+    <div style="margin-top: 20px;" class="text-center">
+      <a href="{{ url_for('login') }}" style="font-size: 0.9rem; color: #35408E; text-decoration: none;" class="fw-bold">← Back to Login</a>
+    </div>
+  </div>
+</section>
+{% endblock %}
