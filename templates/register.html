@@ -2,11 +2,11 @@
 {% block content %}
 <div class="col-md-5 mx-auto">
 <div class="card p-4 mt-4 shadow border-0">
-  <h5 class="text-nu fw-bold text-center" style="color:#35408E;">Create NU Account 🎓</h5>
+  <h5 class="text-nu fw-bold text-center" style="color:#35408E;">Create Account 🎓</h5>
   <form method="POST">
     <input name="student_id" class="form-control mb-2" placeholder="Student ID / Employee ID (e.g. 2023-12345)" required>
     <input name="fullname" class="form-control mb-2" placeholder="Fullname" required>
-    <input name="email" type="email" class="form-control mb-2" placeholder="NU Email" required>
+    <input name="email" type="email" class="form-control mb-2" placeholder="Email Address (ex: user@gmail.com)" required>
 
     <label class="small fw-bold">Select Role:</label>
     <select name="role" id="roleSelect" class="form-select mb-2" required onchange="toggleDept()">
