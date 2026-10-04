@@ -25,7 +25,7 @@ BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '')
 SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'no-reply@brevo.com')
 
 def send_otp_email(receiver_email, otp, intent):
-    """Sends a 6-digit OTP using Brevo REST API with reduced timeout to prevent worker stalls."""
+    """Sends a 6-digit OTP using Brevo REST API with sufficient timeout for external API requests."""
     if not BREVO_API_KEY or 'YOUR-BREVO' in BREVO_API_KEY:
         print("API Error: Missing or default BREVO_API_KEY.")
         return False
@@ -53,8 +53,8 @@ def send_otp_email(receiver_email, otp, intent):
     }
 
     try:
-        # Binabaan sa 3 seconds ang timeout para iwas Gunicorn Worker Timeout
-        response = requests.post(url, json=payload, headers=headers, timeout=3)
+        # Taasan sa 10 seconds para makarating nang maayos ang request kay Brevo
+        response = requests.post(url, json=payload, headers=headers, timeout=10)
         if response.status_code in [200, 201, 202]:
             return True
         else:
