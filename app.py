@@ -10,11 +10,12 @@ import os
 import random
 import requests
 import threading
+import time
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'nu-lab-final-english-2026')
 
-# --- UPDATED DATABASE CONNECTION STRING WITH CORRECT ENCODED PASSWORD ---
+# --- DATABASE CONNECTION STRING ---
 DATABASE_URL = os.environ.get(
     'DATABASE_URL',
     'postgresql://postgres.hudetzzomizjnygxkjqu:Keithley%40100420@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require'
@@ -47,7 +48,7 @@ def send_otp_email_worker(receiver_email, otp, intent):
             }
         ],
         "subject": f"Laboratory System - {intent} OTP",
-        "textContent": f"Your {intent} One-Time Password (OTP) is: {otp}\n\nPlease enter this code to proceed. Do not share this code with anyone."
+        "textContent": f"Your {intent} One-Time Password (OTP) is: {otp}\n\nThis OTP is valid for 5 minutes. Please enter this code to proceed. Do not share this code with anyone."
     }
 
     try:
@@ -135,7 +136,7 @@ def register():
             flash('Please select Department and Section', 'danger')
             return render_template('register.html')
 
-    # Generate 6-digit OTP code
+    # Generate 6-digit OTP code & 5-minute expiration timestamp
     otp = str(random.randint(100000, 999999))
     session['pending_user'] = {
         'student_id': student_id,
@@ -146,10 +147,10 @@ def register():
         'course': course,
         'section': section,
         'department': department,
-        'otp': otp
+        'otp': otp,
+        'otp_expiry': time.time() + 300  # Valid for 300 seconds (5 minutes)
     }
 
-    # I-trigger ang pag-send ng email sa hiwalay na background thread
     threading.Thread(target=send_otp_email_worker, args=(email, otp, "Account Registration")).start()
     flash("We sent a 6-digit OTP code to your email address. Please check your Inbox / Spam folder.", "info")
 
@@ -184,15 +185,15 @@ def reset_request():
             flash('Email address not found.', 'danger')
             return redirect(url_for('reset_request'))
 
-    # Generate OTP code for password reset
+    # Generate OTP code & 5-minute expiration timestamp for password reset
     otp = str(random.randint(100000, 999999))
     session['pending_reset'] = {
         'email': email,
         'new_password': new_password,
-        'otp': otp
+        'otp': otp,
+        'otp_expiry': time.time() + 300  # Valid for 300 seconds (5 minutes)
     }
 
-    # I-trigger ang pag-send ng email sa hiwalay na background thread
     threading.Thread(target=send_otp_email_worker, args=(email, otp, "Password Reset")).start()
     flash("We sent a 6-digit OTP code to your email address. Please check your Inbox / Spam folder.", "info")
 
@@ -211,6 +212,12 @@ def verify_otp(action):
         user_otp = request.form.get("otp_code", "").strip()
         data = session[session_key]
 
+        # 1. Check if OTP is expired (5 minutes limit)
+        if time.time() > data.get('otp_expiry', 0):
+            flash("The OTP code has expired. Please click 'Resend OTP' to receive a new code.", "danger")
+            return render_template("otp_verify.html", action_url=url_for('verify_otp', action=action), action=action)
+
+        # 2. Check if OTP matches
         if user_otp == data['otp']:
             db = get_db()
             if action == "register":
@@ -247,7 +254,30 @@ def verify_otp(action):
         else:
             flash("Invalid OTP code. Try again.", "danger")
 
-    return render_template("otp_verify.html", action_url=url_for('verify_otp', action=action))
+    return render_template("otp_verify.html", action_url=url_for('verify_otp', action=action), action=action)
+
+# ===== RESEND OTP ROUTE =====
+@app.route('/resend-otp/<action>', methods=['GET'])
+def resend_otp(action):
+    session_key = 'pending_user' if action == 'register' else 'pending_reset'
+
+    if session_key not in session:
+        flash("Session expired. Please restart the process.", "warning")
+        return redirect(url_for("register" if action == "register" else "reset_request"))
+
+    data = session[session_key]
+    new_otp = str(random.randint(100000, 999999))
+    
+    # Update session with new OTP and reset expiration timer
+    data['otp'] = new_otp
+    data['otp_expiry'] = time.time() + 300
+    session[session_key] = data
+
+    intent = "Account Registration" if action == "register" else "Password Reset"
+    threading.Thread(target=send_otp_email_worker, args=(data['email'], new_otp, intent)).start()
+
+    flash("A new 6-digit OTP code has been sent to your email address.", "info")
+    return redirect(url_for("verify_otp", action=action))
 
 @app.route('/forgot')
 def forgot_alias():

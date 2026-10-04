@@ -2,18 +2,19 @@
 {% block title %}Verify Email | Laboratory System{% endblock %}
 
 {% block content %}
-<section class="auth-page">
-  <div class="auth-card" style="margin: 0 auto; max-width: 440px;">
-    <div class="card-heading text-center mb-3">
-      <p class="eyebrow text-uppercase text-muted small fw-bold mb-1">Two-Step Verification</p>
-      <h2 class="fw-bold" style="color:#35408E;">Verify Your Email</h2>
-      <p class="muted small text-secondary">Enter the 6-digit code sent to your email address.</p>
+<section class="auth-page" style="padding: 40px 15px;">
+  <div class="auth-card" style="margin: 0 auto; max-width: 440px; background: #ffffff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+    
+    <div class="text-center mb-4">
+      <p style="text-transform: uppercase; font-size: 0.75rem; font-weight: 700; color: #6c757d; margin-bottom: 4px;">Two-Step Verification</p>
+      <h2 style="font-weight: 700; color: #35408E; margin-bottom: 8px;">Verify Your Email</h2>
+      <p style="font-size: 0.875rem; color: #6c757d; margin: 0;">Enter the 6-digit code sent to your email address (Valid for 5 minutes).</p>
     </div>
 
-    <form method="post" action="{{ action_url }}" class="auth-form">
-      <div class="mb-3">
-        <label for="otp_code" class="form-label small fw-bold">Enter 6-Digit Code</label>
-        <div class="input-wrap input-group">
+    <form method="post" action="{{ action_url }}">
+      <div style="margin-bottom: 20px;">
+        <label for="otp_code" style="display: block; font-size: 0.85rem; font-weight: 700; margin-bottom: 8px; color: #333;">Enter 6-Digit Code</label>
+        <div class="input-group">
           <span class="input-group-text">🔢</span>
           <input 
             id="otp_code" 
@@ -28,12 +29,54 @@
           >
         </div>
       </div>
-      <button class="primary wide btn btn-nu w-100 text-white fw-bold" type="submit" style="background:#35408E;">Verify Code <span>→</span></button>
+
+      <button type="submit" class="btn w-100 text-white fw-bold" style="background-color: #35408E; padding: 10px; border-radius: 6px;">
+        Verify Code →
+      </button>
     </form>
 
-    <div style="margin-top: 20px;" class="text-center">
-      <a href="{{ url_for('login') }}" style="font-size: 0.9rem; color: #35408E; text-decoration: none;" class="fw-bold">← Back to Login</a>
+    <!-- RESEND OTP & TIMER SECTION -->
+    <div style="margin-top: 24px; text-align: center; border-top: 1px solid #eee; padding-top: 16px;">
+      <p id="timerText" style="font-size: 0.875rem; color: #6c757d; margin-bottom: 8px;">
+        Didn't receive code? Resend in <span id="countdown" style="font-weight: bold; color: #35408E;">60</span>s
+      </p>
+      
+      <a 
+        id="resendBtn" 
+        href="{{ url_for('resend_otp', action=action) }}" 
+        class="btn btn-sm btn-outline-secondary fw-bold"
+        style="display: none; width: 100%; border-color: #35408E; color: #35408E;"
+      >
+        🔄 Resend OTP Code
+      </a>
     </div>
+
+    <div style="margin-top: 16px;" class="text-center">
+      <a href="{{ url_for('login') }}" style="font-size: 0.875rem; color: #35408E; text-decoration: none; font-weight: 600;">← Back to Login</a>
+    </div>
+
   </div>
 </section>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    let timeLeft = 60;
+    const countdownEl = document.getElementById('countdown');
+    const resendBtn = document.getElementById('resendBtn');
+    const timerText = document.getElementById('timerText');
+
+    const timer = setInterval(() => {
+      timeLeft--;
+      if (countdownEl) {
+        countdownEl.textContent = timeLeft;
+      }
+      
+      if (timeLeft <= 0) {
+        clearInterval(timer);
+        if (timerText) timerText.style.display = 'none';
+        if (resendBtn) resendBtn.style.display = 'block';
+      }
+    }, 1000);
+  });
+</script>
 {% endblock %}
