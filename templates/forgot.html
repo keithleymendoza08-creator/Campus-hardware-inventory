@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="col-md-4 mx-auto">
+<div class="card p-4 mt-5 shadow border-0">
+  <h5 class="fw-bold" style="color:#35408E;">Forgot Password 🔑</h5>
+  <p class="small text-muted">Reset without login - min 8 chars standard</p>
+  <form method="POST">
+    <label class="small fw-bold">NU Email</label>
+    <input name="email" type="email" class="form-control mb-3" placeholder="mendoza@nu.edu.ph" required>
+    <label class="small fw-bold">New Password (min 8)</label>
+    <div class="input-group mb-2">
+      <input id="np" name="new_password" type="password" class="form-control" placeholder="New password" required minlength="8">
+      <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('np').type = document.getElementById('np').type==='password'?'text':'password'">👁️</button>
+    </div>
+    <label class="small fw-bold">Confirm</label>
+    <div class="input-group mb-3">
+      <input id="cp" name="confirm_password" type="password" class="form-control" placeholder="Confirm" required minlength="8">
+      <button type="button" class="btn btn-outline-secondary" onclick="document.getElementById('cp').type = document.getElementById('cp').type==='password'?'text':'password'">👁️</button>
+    </div>
+    <button class="btn w-100 text-white fw-bold" style="background:#35408E;">RESET PASSWORD</button>
+  </form>
+  <p class="small text-center mt-3"><a href="/login">Back to Login</a></p>
+</div>
+</div>
+{% endblock %}

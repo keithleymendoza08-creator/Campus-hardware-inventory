@@ -1,0 +1,18 @@
+# Local Database & Logs
+database.db
+hardware_inventory.db
+app_logging/
+
+# Environment variables & Credentials
+.env
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+
+# Python Cache & Compiled Bytes
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
