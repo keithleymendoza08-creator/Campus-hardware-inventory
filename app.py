@@ -156,26 +156,17 @@ def register():
 
     return redirect(url_for("verify_otp", action="register"))
 
-# ===== RESET / FORGOT PASSWORD WITH OTP =====
+# ===== STEP 1 FORGOT PASSWORD: REQUEST EMAIL =====
+@app.route('/forgot', methods=['GET', 'POST'])
 @app.route('/reset-request', methods=['GET', 'POST'])
 def reset_request():
     if request.method == 'GET':
-        return render_template('reset_password.html')
+        return render_template('forgot.html')
 
     email = request.form.get('email', '').strip()
-    new_password = request.form.get('new_password', '').strip()
-    confirm_password = request.form.get('confirm_password', '').strip()
 
-    if not email or not new_password or not confirm_password:
-        flash('All reset fields are required.', 'danger')
-        return redirect(url_for('reset_request'))
-
-    if len(new_password) < 8:
-        flash('Password must be at least 8 characters.', 'danger')
-        return redirect(url_for('reset_request'))
-
-    if new_password != confirm_password:
-        flash('New passwords do not match.', 'danger')
+    if not email:
+        flash('Please enter your email address.', 'danger')
         return redirect(url_for('reset_request'))
 
     db = get_db()
@@ -189,7 +180,6 @@ def reset_request():
     otp = str(random.randint(100000, 999999))
     session['pending_reset'] = {
         'email': email,
-        'new_password': new_password,
         'otp': otp,
         'otp_expiry': time.time() + 300  # Valid for 300 seconds (5 minutes)
     }
@@ -199,7 +189,7 @@ def reset_request():
 
     return redirect(url_for("verify_otp", action="reset"))
 
-# ===== VERIFY OTP ROUTE =====
+# ===== STEP 2: VERIFY OTP ROUTE =====
 @app.route('/verify-otp/<action>', methods=['GET', 'POST'])
 def verify_otp(action):
     session_key = 'pending_user' if action == 'register' else 'pending_reset'
@@ -239,22 +229,52 @@ def verify_otp(action):
                     return redirect(url_for("register"))
 
             elif action == "reset":
-                try:
-                    hashed = generate_password_hash(data['new_password'])
-                    with db.cursor() as cur:
-                        cur.execute("UPDATE users SET password=%s WHERE email=%s", (hashed, data['email']))
-                        db.commit()
-                    session.pop(session_key, None)
-                    flash("Password successfully reset! You can now login.", "success")
-                    return redirect(url_for("login"))
-                except Exception as e:
-                    print("Reset Error:", e)
-                    flash("Failed to update password. Please try again.", "danger")
-                    return redirect(url_for("reset_request"))
+                # Mark OTP as verified and allow setting new password
+                session['otp_verified_for_reset'] = True
+                flash("OTP code verified! Please set your new password.", "success")
+                return redirect(url_for("set_new_password"))
         else:
             flash("Invalid OTP code. Try again.", "danger")
 
     return render_template("otp_verify.html", action_url=url_for('verify_otp', action=action), action=action)
+
+# ===== STEP 3: SET NEW PASSWORD AFTER OTP VERIFICATION =====
+@app.route('/set-new-password', methods=['GET', 'POST'])
+def set_new_password():
+    if 'pending_reset' not in session or not session.get('otp_verified_for_reset'):
+        flash("Unauthorized access. Please request a password reset first.", "danger")
+        return redirect(url_for("reset_request"))
+
+    if request.method == 'POST':
+        new_password = request.form.get('new_password', '').strip()
+        confirm_password = request.form.get('confirm_password', '').strip()
+
+        if len(new_password) < 8:
+            flash('Password must be at least 8 characters.', 'danger')
+            return render_template('reset_password.html')
+
+        if new_password != confirm_password:
+            flash('Passwords do not match.', 'danger')
+            return render_template('reset_password.html')
+
+        email = session['pending_reset']['email']
+        try:
+            db = get_db()
+            hashed = generate_password_hash(new_password)
+            with db.cursor() as cur:
+                cur.execute("UPDATE users SET password=%s WHERE email=%s", (hashed, email))
+                db.commit()
+
+            session.pop('pending_reset', None)
+            session.pop('otp_verified_for_reset', None)
+            flash("Password successfully reset! You can now login with your new password.", "success")
+            return redirect(url_for("login"))
+        except Exception as e:
+            print("Reset Error:", e)
+            flash("Failed to update password. Please try again.", "danger")
+            return redirect(url_for("reset_request"))
+
+    return render_template('reset_password.html')
 
 # ===== RESEND OTP ROUTE =====
 @app.route('/resend-otp/<action>', methods=['GET'])
@@ -278,10 +298,6 @@ def resend_otp(action):
 
     flash("A new 6-digit OTP code has been sent to your email address.", "info")
     return redirect(url_for("verify_otp", action=action))
-
-@app.route('/forgot')
-def forgot_alias():
-    return redirect(url_for('reset_request'))
 
 @app.route('/logout')
 def logout():
