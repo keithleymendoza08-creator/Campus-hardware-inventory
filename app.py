@@ -9,6 +9,7 @@ import csv
 import os
 import random
 import requests
+import threading
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'nu-lab-final-english-2026')
@@ -20,24 +21,21 @@ DATABASE_URL = os.environ.get(
 )
 
 # --- BREVO REST API CONFIGURATION ---
-# Binago para hindi mag-trigger ang GitHub Push Protection
 BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '')
 SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'no-reply@brevo.com')
 
-def send_otp_email(receiver_email, otp, intent):
-    """Sends a 6-digit OTP using Brevo REST API with sufficient timeout for external API requests."""
+def send_otp_email_worker(receiver_email, otp, intent):
+    """Background worker para sa pagpapadala ng OTP email gamit ang Brevo API nang hindi nagho-hold sa HTTP response."""
     if not BREVO_API_KEY or 'YOUR-BREVO' in BREVO_API_KEY:
         print("API Error: Missing or default BREVO_API_KEY.")
-        return False
+        return
 
     url = "https://api.brevo.com/v3/smtp/email"
-    
     headers = {
         "accept": "application/json",
         "api-key": BREVO_API_KEY,
         "content-type": "application/json"
     }
-    
     payload = {
         "sender": {
             "name": "Laboratory System",
@@ -53,16 +51,10 @@ def send_otp_email(receiver_email, otp, intent):
     }
 
     try:
-        # Taasan sa 10 seconds para makarating nang maayos ang request kay Brevo
-        response = requests.post(url, json=payload, headers=headers, timeout=10)
-        if response.status_code in [200, 201, 202]:
-            return True
-        else:
-            print(f"Brevo API Error ({response.status_code}): {response.text}")
-            return False
+        response = requests.post(url, json=payload, headers=headers, timeout=15)
+        print(f"Brevo API Email Sent. Status Code: {response.status_code}, Response: {response.text}")
     except Exception as e:
-        print(f"Brevo API Request Timeout or Failed: {e}")
-        return False
+        print(f"Brevo API Request Error: {e}")
 
 UPLOAD_FOLDER = os.path.join('static', 'uploads', 'profile')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -157,12 +149,9 @@ def register():
         'otp': otp
     }
 
-    sent = send_otp_email(email, otp, intent="Account Registration")
-    if sent:
-        flash("We sent a 6-digit code to your email. Please verify.", "info")
-    else:
-        print(f"=== REGISTER OTP CODE FOR {email}: {otp} ===")
-        flash(f"Email delivery timed out. For testing/verification, your OTP code is: {otp}", "warning")
+    # I-trigger ang pag-send ng email sa hiwalay na background thread
+    threading.Thread(target=send_otp_email_worker, args=(email, otp, "Account Registration")).start()
+    flash("We sent a 6-digit OTP code to your email address. Please check your Inbox / Spam folder.", "info")
 
     return redirect(url_for("verify_otp", action="register"))
 
@@ -203,12 +192,9 @@ def reset_request():
         'otp': otp
     }
 
-    sent = send_otp_email(email, otp, intent="Password Reset")
-    if sent:
-        flash("We sent a 6-digit code to your email. Please verify.", "info")
-    else:
-        print(f"=== RESET OTP CODE FOR {email}: {otp} ===")
-        flash(f"Email delivery timed out. For testing/verification, your OTP code is: {otp}", "warning")
+    # I-trigger ang pag-send ng email sa hiwalay na background thread
+    threading.Thread(target=send_otp_email_worker, args=(email, otp, "Password Reset")).start()
+    flash("We sent a 6-digit OTP code to your email address. Please check your Inbox / Spam folder.", "info")
 
     return redirect(url_for("verify_otp", action="reset"))
 
