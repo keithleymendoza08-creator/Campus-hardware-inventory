@@ -1,146 +1,172 @@
-{% extends 'base.html' %}
-{% block title %}Dashboard - Global Payments HRIS{% endblock %}
-{% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h3 class="fw-bold text-gp"><i class="bi bi-speedometer2"></i> HRIS Dashboard</h3>
-    <a href="/export_payroll_csv" class="btn btn-gp-accent fw-bold"><i class="bi bi-file-earmark-spreadsheet"></i> Export Master Payroll Register</a>
-</div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Global Payments HRIS</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
-<!-- Key Performance Indicators -->
-<div class="row g-3 mb-4">
-    <div class="col-md-4">
-        <div class="card card-custom p-3 bg-white border-start border-primary border-4">
-            <p class="text-muted mb-1 small fw-bold">TOTAL EMPLOYEES</p>
-            <h2 class="fw-bold text-gp mb-0">{{ total_employees }}</h2>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card card-custom p-3 bg-white border-start border-warning border-4">
-            <p class="text-muted mb-1 small fw-bold">PENDING LEAVES</p>
-            <h2 class="fw-bold text-warning mb-0">{{ pending_leaves_count }}</h2>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="card card-custom p-3 bg-white border-start border-success border-4">
-            <p class="text-muted mb-1 small fw-bold">TOTAL PAYROLL DISBURSED</p>
-            <h2 class="fw-bold text-success mb-0">${{ "%.2f"|format(total_payroll) }}</h2>
-        </div>
-    </div>
-</div>
+    <style>
+        :root {
+            --gp-navy: #002B49;
+            --gp-blue: #0066B2;
+            --gp-accent: #00A3E0;
+            --gp-bg: #F8FAFC;
+        }
 
-<div class="row g-4">
-    <!-- Apply Leave Form -->
-    <div class="col-md-4">
-        <div class="card card-custom p-4">
-            <h5 class="fw-bold text-gp mb-3"><i class="bi bi-calendar-plus"></i> Apply for Leave</h5>
-            <form action="/leave/apply" method="POST">
-                <div class="mb-2">
-                    <label class="form-label small fw-bold">Leave Type</label>
-                    <select name="leave_type" class="form-select" required>
-                        <option value="Sick Leave">Sick Leave</option>
-                        <option value="Vacation Leave">Vacation Leave</option>
-                        <option value="Emergency Leave">Emergency Leave</option>
-                    </select>
-                </div>
-                <div class="mb-2">
-                    <label class="form-label small fw-bold">Start Date</label>
-                    <input type="date" name="start_date" class="form-control" required>
-                </div>
-                <div class="mb-2">
-                    <label class="form-label small fw-bold">End Date</label>
-                    <input type="date" name="end_date" class="form-control" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label small fw-bold">Reason</label>
-                    <textarea name="reason" class="form-control" rows="2" required></textarea>
-                </div>
-                <button type="submit" class="btn btn-gp w-100 fw-bold">Submit Request</button>
-            </form>
-        </div>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--gp-bg);
+            color: #1E293B;
+        }
 
-        {% if session.get('role') in ['admin', 'hr_manager'] %}
-        <div class="card card-custom p-4 mt-4">
-            <h5 class="fw-bold text-gp mb-3"><i class="bi bi-calculator"></i> Process Payroll Period</h5>
-            <form action="/admin/calculate_payroll" method="POST">
-                <div class="mb-2">
-                    <label class="form-label small fw-bold">Period Start</label>
-                    <input type="date" name="period_start" class="form-control" required>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label small fw-bold">Period End</label>
-                    <input type="date" name="period_end" class="form-control" required>
-                </div>
-                <button type="submit" class="btn btn-danger w-100 fw-bold">Process & Lock Payroll</button>
-            </form>
-        </div>
-        {% endif %}
-    </div>
+        .navbar-custom {
+            background-color: var(--gp-navy);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
 
-    <!-- Tables Column -->
-    <div class="col-md-8">
-        <!-- Pending Leave Approvals -->
-        <div class="card card-custom p-4 mb-4">
-            <h5 class="fw-bold text-gp mb-3"><i class="bi bi-hourglass-split"></i> Pending Leave Approvals</h5>
-            <div class="table-responsive">
-                <table class="table table-hover align-middle">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Employee</th>
-                            <th>Type</th>
-                            <th>Dates</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for l in pending_leaves %}
-                        <tr>
-                            <td><strong>{{ l.fullname }}</strong><br><small class="text-muted">{{ l.department }}</small></td>
-                            <td><span class="badge bg-warning text-dark">{{ l.leave_type }}</span></td>
-                            <td>{{ l.start_date }} to {{ l.end_date }}</td>
-                            <td>
-                                {% if session.get('role') in ['admin', 'hr_manager', 'supervisor'] %}
-                                <a href="/admin/approve_leave/{{ l.id }}" class="btn btn-sm btn-success fw-bold">Approve</a>
-                                {% else %}
-                                <span class="badge bg-secondary">Pending</span>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="4" class="text-center text-muted">No pending leave requests.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+        .module-card {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 24px;
+            border: 1px solid #E2E8F0;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+            height: 100%;
+            position: relative;
+        }
+
+        .module-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 20px -5px rgba(0, 43, 73, 0.12);
+            border-color: var(--gp-blue);
+        }
+
+        .module-number {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #FF5E14;
+            margin-bottom: 12px;
+        }
+
+        .module-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--gp-navy);
+            margin-bottom: 8px;
+        }
+
+        .module-desc {
+            font-size: 0.88rem;
+            color: #64748B;
+            line-height: 1.5;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark navbar-custom py-3">
+        <div class="container-fluid px-4">
+            <a class="navbar-brand d-flex align-items-center gap-2 fw-bold" href="#">
+                <i class="fa-solid fa-shield-halved text-info"></i> Global Payments HRIS
+            </a>
+            <div class="d-flex align-items-center gap-3 text-white">
+                <span class="small d-none d-md-inline"><i class="fa-regular fa-user me-1"></i> {{ session.get('user_email', 'Employee Portal') }}</span>
+                <a href="/logout" class="btn btn-outline-light btn-sm"><i class="fa-solid fa-right-from-bracket me-1"></i> Logout</a>
             </div>
         </div>
+    </nav>
 
-        <!-- Recent Timekeeping Logs -->
-        <div class="card card-custom p-4">
-            <h5 class="fw-bold text-gp mb-3"><i class="bi bi-clock"></i> Recent Timekeeping Records</h5>
-            <div class="table-responsive">
-                <table class="table table-sm align-middle">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Employee</th>
-                            <th>Clock In</th>
-                            <th>Clock Out</th>
-                            <th>Tardy (mins)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for t in timekeeping_records %}
-                        <tr>
-                            <td>{{ t.fullname }}</td>
-                            <td>{{ t.clock_in }}</td>
-                            <td>{{ t.clock_out or 'Active' }}</td>
-                            <td><span class="badge bg-{{ 'danger' if t.tardy_minutes > 0 else 'secondary' }}">{{ t.tardy_minutes }}</span></td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="4" class="text-center text-muted">No recent records.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+    <!-- Main Content Grid -->
+    <div class="container py-5">
+        <div class="mb-4">
+            <h2 class="fw-bold text-navy mb-1" style="color: var(--gp-navy);">HRIS Modules & Workflow</h2>
+            <p class="text-muted">Select an operational module to manage employee records, timekeeping, and payroll processing.</p>
+        </div>
+
+        <div class="row g-4">
+            <!-- Module 1 -->
+            <div class="col-md-6 col-lg-4">
+                <div class="module-card">
+                    <div class="module-number">1</div>
+                    <div class="module-title">Registration & Shift Assignment</div>
+                    <p class="module-desc">Enter profiles and rates; assign standard or flexible shifts.</p>
+                </div>
+            </div>
+
+            <!-- Module 2 -->
+            <div class="col-md-6 col-lg-4">
+                <div class="module-card">
+                    <div class="module-number">2</div>
+                    <div class="module-title">Daily Time-In / Time-Out</div>
+                    <p class="module-desc">Compare clock timestamps against assigned shift boundaries.</p>
+                </div>
+            </div>
+
+            <!-- Module 3 -->
+            <div class="col-md-6 col-lg-4">
+                <div class="module-card">
+                    <div class="module-number">3</div>
+                    <div class="module-title">Tardiness & Undertime Ledger</div>
+                    <p class="module-desc">Calculate late minutes after grace period and daily undertime.</p>
+                </div>
+            </div>
+
+            <!-- Module 4 -->
+            <div class="col-md-6 col-lg-4">
+                <div class="module-card">
+                    <div class="module-number">4</div>
+                    <div class="module-title">Leave Application</div>
+                    <p class="module-desc">File leave type; validate available leave balance.</p>
+                </div>
+            </div>
+
+            <!-- Module 5 -->
+            <div class="col-md-6 col-lg-4">
+                <div class="module-card">
+                    <div class="module-number">5</div>
+                    <div class="module-title">Multi-Level Approval</div>
+                    <p class="module-desc">Supervisor endorses; HR approves and updates leave credits.</p>
+                </div>
+            </div>
+
+            <!-- Module 6 -->
+            <div class="col-md-6 col-lg-4">
+                <div class="module-card">
+                    <div class="module-number">6</div>
+                    <div class="module-title">Payroll Cut-Off & Deductions</div>
+                    <p class="module-desc">Aggregate work, overtime, tardiness, absences, and taxes.</p>
+                </div>
+            </div>
+
+            <!-- Module 7 -->
+            <div class="col-md-6 col-lg-4">
+                <div class="module-card">
+                    <div class="module-number">7</div>
+                    <div class="module-title">Payroll Locking</div>
+                    <p class="module-desc">HR audits totals and locks the period against retroactive edits.</p>
+                </div>
+            </div>
+
+            <!-- Module 8 -->
+            <div class="col-md-6 col-lg-4">
+                <div class="module-card">
+                    <div class="module-number">8</div>
+                    <div class="module-title">DTR & Payslip Printing</div>
+                    <p class="module-desc">Generate employee and departmental payroll documents.</p>
+                </div>
             </div>
         </div>
     </div>
-</div>
-{% endblock %}
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/bootstrap.bundle.min.js"></script>
+</body>
+</html>
