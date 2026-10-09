@@ -15,10 +15,10 @@ import time
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'global-payments-hris-2026')
 
-# --- DIRECT DATABASE CONNECTION STRING ---
+# --- TRANSACTION POOLER CONNECTION STRING (IPv4 - Port 6543) ---
 DATABASE_URL = os.environ.get(
     'DATABASE_URL',
-    'postgresql://postgres:Keithleyvien0516@db.hudetzzomizjnygxkjqu.supabase.co:5432/postgres?sslmode=require'
+    'postgresql://postgres.hudetzzomizjnygxkjqu:Keithleyvien0516@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require'
 )
 
 # --- BREVO REST API CONFIGURATION ---
@@ -135,7 +135,6 @@ def register():
         flash('Please select Department and Job Title', 'danger')
         return render_template('register.html')
 
-    # Generate 6-digit OTP code & 5-minute expiration timestamp
     otp = str(random.randint(100000, 999999))
     session['pending_user'] = {
         'employee_id': employee_id,
@@ -146,7 +145,7 @@ def register():
         'job_title': job_title,
         'department': department,
         'otp': otp,
-        'otp_expiry': time.time() + 300  # Valid for 300 seconds (5 minutes)
+        'otp_expiry': time.time() + 300
     }
 
     threading.Thread(target=send_otp_email_worker, args=(email, otp, "Account Registration")).start()
@@ -174,12 +173,11 @@ def reset_request():
             flash('Email address not found.', 'danger')
             return redirect(url_for('reset_request'))
 
-    # Generate OTP code & 5-minute expiration timestamp for password reset
     otp = str(random.randint(100000, 999999))
     session['pending_reset'] = {
         'email': email,
         'otp': otp,
-        'otp_expiry': time.time() + 300  # Valid for 300 seconds (5 minutes)
+        'otp_expiry': time.time() + 300
     }
 
     threading.Thread(target=send_otp_email_worker, args=(email, otp, "Password Reset")).start()
@@ -200,12 +198,10 @@ def verify_otp(action):
         user_otp = request.form.get("otp_code", "").strip()
         data = session[session_key]
 
-        # 1. Check if OTP is expired (5 minutes limit)
         if time.time() > data.get('otp_expiry', 0):
             flash("The OTP code has expired. Please click 'Resend OTP' to receive a new code.", "danger")
             return render_template("otp_verify.html", action_url=url_for('verify_otp', action=action), action=action)
 
-        # 2. Check if OTP matches
         if user_otp == data['otp']:
             db = get_db()
             if action == "register":
@@ -307,6 +303,9 @@ def dashboard():
     db = get_db()
     q = request.args.get('q', '')
     with db.cursor() as cur:
+        # Kunin ang buong detalye ng kasalukuyang naka-login na user para sa header / profile link
+        current_user = cur.execute("SELECT * FROM users WHERE id=%s", (session['user_id'],)).fetchone()
+
         employees = cur.execute("SELECT * FROM users WHERE fullname ILIKE %s ORDER BY id DESC", (f"%{q}%",)).fetchall()
         
         t_res = cur.execute("SELECT COUNT(*) as c FROM users WHERE role='employee'").fetchone()
@@ -337,6 +336,7 @@ def dashboard():
 
     return render_template(
         'dashboard.html', 
+        user=current_user,
         employees=employees, 
         my_leaves=my_leaves, 
         pending_leaves=pending_leaves_list, 
@@ -352,7 +352,7 @@ def timekeeping():
     if 'user_id' not in session:
         return redirect('/login')
     if request.method == 'POST':
-        action_type = request.form.get('action') # 'time_in' or 'time_out'
+        action_type = request.form.get('action')
         if action_type == 'time_in':
             hris.record_time_in(session['user_id'])
             flash('Successfully Clocked In!', 'success')
