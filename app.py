@@ -115,6 +115,8 @@ def login():
             session['user_id'] = user['id']
             session['role'] = user['role']
             session['fullname'] = user['fullname']
+            session['user_email'] = user['email']
+            session['employee_id'] = user.get('employee_id', '')
             return redirect('/dashboard')
         flash('Invalid email or password', 'danger')
     return render_template('login.html')
@@ -266,7 +268,8 @@ def dashboard():
             pending_leaves_list = cur.fetchall() or []
 
             cur.execute("""
-                SELECT t.*, u.fullname, u.department FROM timekeeping t
+                SELECT t.*, u.fullname, u.department, u.employee_id, u.work_location as lob, u.shift_start 
+                FROM timekeeping t
                 JOIN users u ON u.id=t.user_id
                 ORDER BY t.clock_in DESC LIMIT 20
             """)
@@ -289,7 +292,8 @@ def dashboard():
         print("Dashboard Route Error:", e)
         fallback_user = {
             'fullname': session.get('fullname', 'Employee Profile'),
-            'role': session.get('role', 'employee')
+            'role': session.get('role', 'employee'),
+            'email': session.get('user_email', '')
         }
         return render_template(
             'dashboard.html', 
@@ -307,7 +311,7 @@ def dashboard():
 # ===== SHIFT ASSIGNMENT MANAGEMENT =====
 @app.route('/admin/assign_shift', methods=['POST'])
 def assign_shift():
-    if session.get('role') not in ['admin', 'hr_manager', 'supervisor']:
+    if session.get('role') not in ['admin', 'hr_manager', 'supervisor', 'hr']:
         flash('Unauthorized access for shift management.', 'danger')
         return redirect('/dashboard')
 
@@ -378,7 +382,7 @@ def apply_leave():
 # ===== MULTI-LEVEL APPROVAL =====
 @app.route('/admin/approve_leave/<int:id>')
 def approve_leave(id):
-    if session.get('role') not in ['admin', 'hr_manager', 'supervisor']:
+    if session.get('role') not in ['admin', 'hr_manager', 'supervisor', 'hr']:
         flash('Unauthorized access for leave approval.', 'danger')
         return redirect('/dashboard')
     ok, msg = hris.approve_leave(id, session['user_id'])
@@ -388,7 +392,7 @@ def approve_leave(id):
 # ===== PAYROLL CUT-OFF & LOCKING =====
 @app.route('/admin/calculate_payroll', methods=['POST'])
 def calculate_payroll():
-    if session.get('role') not in ['admin', 'hr_manager']:
+    if session.get('role') not in ['admin', 'hr_manager', 'hr']:
         flash('Unauthorized access for payroll processing.', 'danger')
         return redirect('/dashboard')
     period_start = request.form.get('period_start')
@@ -402,20 +406,34 @@ def calculate_payroll():
 def export_payroll_csv():
     if 'user_id' not in session:
         return redirect('/login')
+    
     db = get_db()
+    user_role = session.get('role', 'employee')
+    
     with db.cursor() as cur:
-        cur.execute("""
-            SELECT p.*, u.fullname, u.department, u.employee_id 
-            FROM payroll_records p
-            JOIN users u ON u.id=p.user_id
-        """)
+        if user_role == 'employee':
+            cur.execute("""
+                SELECT p.*, u.fullname, u.department, u.employee_id 
+                FROM payroll_records p
+                JOIN users u ON u.id=p.user_id
+                WHERE p.user_id=%s
+            """, (session['user_id'],))
+        else:
+            cur.execute("""
+                SELECT p.*, u.fullname, u.department, u.employee_id 
+                FROM payroll_records p
+                JOIN users u ON u.id=p.user_id
+            """)
         payroll_data = cur.fetchall() or []
+
     si = StringIO()
     w = csv.writer(si)
     w.writerow(['Employee ID', 'Fullname', 'Department', 'Basic Pay', 'Overtime Pay', 'Tardy Deductions', 'Tax Deductions', 'Net Pay'])
     for p in payroll_data:
         w.writerow([p['employee_id'], p['fullname'], p['department'], p['basic_pay'], p['overtime_pay'], p['tardy_deductions'], p['tax_deductions'], p['net_pay']])
-    return Response(si.getvalue(), mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=global_payments_payroll_register.csv"})
+    
+    filename = "my_payslip.csv" if user_role == 'employee' else "master_payroll_register.csv"
+    return Response(si.getvalue(), mimetype="text/csv", headers={"Content-Disposition": f"attachment;filename={filename}"})
 
 @app.route('/profile', methods=['GET','POST'])
 def profile():
