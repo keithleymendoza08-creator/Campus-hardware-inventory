@@ -15,10 +15,10 @@ import time
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'global-payments-hris-2026')
 
-# --- DATABASE CONNECTION STRING ---
+# --- DIRECT DATABASE CONNECTION STRING ---
 DATABASE_URL = os.environ.get(
     'DATABASE_URL',
-    'postgresql://postgres.hudetzzomizjnygxkjqu:Keithley%401004@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require'
+    'postgresql://postgres:Keithleyvien0516@db.hudetzzomizjnygxkjqu.supabase.co:5432/postgres?sslmode=require'
 )
 
 # --- BREVO REST API CONFIGURATION ---
