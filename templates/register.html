@@ -1,4 +1,4 @@
-{{% extends 'base.html' %}
+{% extends 'base.html' %}
 {% block title %}Register - Global Payments HRIS{% endblock %}
 {% block content %}
 <div class="row justify-content-center">
@@ -36,6 +36,22 @@
                     <div class="col-md-6">
                         <label class="form-label fw-bold">Job Title</label>
                         <input type="text" name="job_title" class="form-control" required placeholder="Software Engineer">
+                    </div>
+
+                    <!-- Shift Start & Shift End -->
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Shift Start</label>
+                        <input type="time" name="shift_start" class="form-control" value="09:00" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">Shift End</label>
+                        <input type="time" name="shift_end" class="form-control" value="18:00" required>
+                    </div>
+
+                    <!-- Work Location -->
+                    <div class="col-12">
+                        <label class="form-label fw-bold">Work Location</label>
+                        <input type="text" name="work_location" class="form-control" placeholder="e.g. Cubao Quezon City" value="Cubao Quezon City" required>
                     </div>
                 </div>
                 <button type="submit" class="btn btn-gp-accent w-100 fw-bold py-2 mt-4">Send OTP & Register</button>

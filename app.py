@@ -64,6 +64,7 @@ def allowed_file(filename):
 hris.init_system()
 
 def migrate_users_table():
+    """Migrates schema to support detailed registration fields and shift assignments."""
     try:
         conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
         with conn.cursor() as cur:
@@ -71,6 +72,12 @@ def migrate_users_table():
             cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS job_title TEXT DEFAULT '';")
             cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS department TEXT DEFAULT '';")
             cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS hourly_rate NUMERIC DEFAULT 0;")
+            
+            # --- SHIFT ASSIGNMENT FIELDS ---
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS shift_start TIME DEFAULT '09:00:00';")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS shift_end TIME DEFAULT '18:00:00';")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS rest_days TEXT DEFAULT 'Saturday,Sunday';")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS work_location TEXT DEFAULT 'Cubao Quezon City';")
             conn.commit()
         conn.close()
     except Exception as e:
@@ -120,13 +127,17 @@ def register():
     email = request.form.get('email', '').strip()
     password = request.form.get('password', '').strip()
     role = request.form.get('role', 'employee').strip()
+    department = request.form.get('department','').strip()
+    job_title = request.form.get('job_title','').strip()
+    
+    # Optional Shift inputs during registration (or set defaults)
+    shift_start = request.form.get('shift_start', '09:00').strip()
+    shift_end = request.form.get('shift_end', '18:00').strip()
+    work_location = request.form.get('work_location', 'Cubao Quezon City').strip()
 
     if len(password) < 8:
         flash('Password must be at least 8 characters', 'danger')
         return render_template('register.html')
-
-    department = request.form.get('department','').strip()
-    job_title = request.form.get('job_title','').strip()
 
     if not department or not job_title:
         flash('Please select Department and Job Title', 'danger')
@@ -141,6 +152,9 @@ def register():
         'role': role,
         'job_title': job_title,
         'department': department,
+        'shift_start': shift_start,
+        'shift_end': shift_end,
+        'work_location': work_location,
         'otp': otp,
         'otp_expiry': time.time() + 300
     }
@@ -172,11 +186,19 @@ def verify_otp(action):
                 try:
                     with db.cursor() as cur:
                         cur.execute("""
-                            INSERT INTO users (employee_id, fullname, email, password, role, job_title, department)
-                            VALUES (%s,%s,%s,%s,%s,%s,%s)
-                        """, (data['employee_id'], data['fullname'], data['email'],
-                              generate_password_hash(data['password']), data['role'],
-                              data['job_title'], data['department']))
+                            INSERT INTO users (
+                                employee_id, fullname, email, password, role, 
+                                job_title, department, shift_start, shift_end, work_location
+                            )
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (
+                            data['employee_id'], data['fullname'], data['email'],
+                            generate_password_hash(data['password']), data['role'],
+                            data['job_title'], data['department'],
+                            data.get('shift_start', '09:00:00'),
+                            data.get('shift_end', '18:00:00'),
+                            data.get('work_location', 'Cubao Quezon City')
+                        ))
                         db.commit()
                     session.pop(session_key, None)
                     flash("Account successfully verified and created! Please login.", "success")
@@ -195,7 +217,7 @@ def logout():
     session.clear()
     return redirect('/login')
 
-# ===== MAIN DASHBOARD (Hosts 8 Modules) =====
+# ===== MAIN DASHBOARD (Hosts Modules) =====
 @app.route('/dashboard')
 def dashboard():
     if 'user_id' not in session:
@@ -279,6 +301,38 @@ def dashboard():
             total_payroll=0.0, 
             search_q=q
         )
+
+# ===== SHIFT ASSIGNMENT MANAGEMENT =====
+@app.route('/admin/assign_shift', methods=['POST'])
+def assign_shift():
+    """Allows Admin/HR to update employee shift schedule and rest days."""
+    if session.get('role') not in ['admin', 'hr_manager', 'supervisor']:
+        flash('Unauthorized access for shift management.', 'danger')
+        return redirect('/dashboard')
+
+    user_id = request.form.get('user_id')
+    shift_start = request.form.get('shift_start')
+    shift_end = request.form.get('shift_end')
+    rest_days = request.form.getlist('rest_days')  # List of selected rest days
+    work_location = request.form.get('work_location', 'Cubao Quezon City')
+
+    rest_days_str = ",".join(rest_days) if rest_days else "Saturday,Sunday"
+
+    db = get_db()
+    try:
+        with db.cursor() as cur:
+            cur.execute("""
+                UPDATE users 
+                SET shift_start = %s, shift_end = %s, rest_days = %s, work_location = %s
+                WHERE id = %s
+            """, (shift_start, shift_end, rest_days_str, work_location, user_id))
+            db.commit()
+        flash('Shift schedule updated successfully!', 'success')
+    except Exception as e:
+        print("Shift Assignment Error:", e)
+        flash('Failed to update shift schedule.', 'danger')
+
+    return redirect('/dashboard')
 
 # ===== MODULE 2 & 3: TIMEKEEPING & TARDINESS =====
 @app.route('/timekeeping', methods=['GET', 'POST'])

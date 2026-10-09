@@ -64,15 +64,23 @@
 </div>
 
 <div class="row g-4">
-    <!-- Module 1: Registration -->
+    <!-- Module 1: Registration & Shift Assignment -->
     <div class="col-md-6 col-lg-4">
+        {% if session.get('role') in ['admin', 'hr_manager', 'supervisor'] %}
+        <div class="module-card" data-bs-toggle="modal" data-bs-target="#shiftAssignmentModal">
+            <div class="module-number">1</div>
+            <div class="module-title">Registration & Shift Assignment</div>
+            <p class="module-desc">Enter profiles, rate details, and assign standard/flexible shift schedules.</p>
+        </div>
+        {% else %}
         <a href="{{ url_for('register') }}" class="module-card-link">
             <div class="module-card">
                 <div class="module-number">1</div>
                 <div class="module-title">Registration & Shift Assignment</div>
-                <p class="module-desc">Enter profiles and rates; assign standard or flexible shifts.</p>
+                <p class="module-desc">Register new employee profiles and initial shift preferences.</p>
             </div>
         </a>
+        {% endif %}
     </div>
 
     <!-- Module 2: Time In / Time Out -->
@@ -142,6 +150,84 @@
 </div>
 
 <!-- ================= MODALS SECTION ================= -->
+
+<!-- Module 1: Shift Assignment Modal (Admin / HR) -->
+<div class="modal fade" id="shiftAssignmentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header text-white" style="background-color: var(--gp-navy);">
+                <h5 class="modal-title fw-bold"><i class="bi bi-calendar-range me-2"></i>Shift Schedule & Location Assignment</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('assign_shift') }}" method="POST">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label for="user_id" class="form-label fw-bold">Select Employee</label>
+                        <select name="user_id" id="user_id" class="form-select" required>
+                            <option value="" disabled selected>Select employee to assign schedule...</option>
+                            {% for emp in employees %}
+                                <option value="{{ emp.id }}">{{ emp.fullname }} ({{ emp.employee_id if emp.employee_id else 'ID: ' ~ emp.id }}) - {{ emp.department }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Shift Start</label>
+                            <input type="time" name="shift_start" class="form-control" value="09:00" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Shift End</label>
+                            <input type="time" name="shift_end" class="form-control" value="18:00" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold d-block">Assigned Rest Days</label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" name="rest_days" value="Monday" id="rd_mon">
+                            <label class="form-check-label" for="rd_mon">Mon</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" name="rest_days" value="Tuesday" id="rd_tue">
+                            <label class="form-check-label" for="rd_tue">Tue</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" name="rest_days" value="Wednesday" id="rd_wed">
+                            <label class="form-check-label" for="rd_wed">Wed</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" name="rest_days" value="Thursday" id="rd_thu">
+                            <label class="form-check-label" for="rd_thu">Thu</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" name="rest_days" value="Friday" id="rd_fri">
+                            <label class="form-check-label" for="rd_fri">Fri</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" name="rest_days" value="Saturday" id="rd_sat" checked>
+                            <label class="form-check-label" for="rd_sat">Sat</label>
+                        </div>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" name="rest_days" value="Sunday" id="rd_sun" checked>
+                            <label class="form-check-label" for="rd_sun">Sun</label>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Work Location</label>
+                        <input type="text" name="work_location" class="form-control" value="Cubao Quezon City" placeholder="e.g. Cubao Quezon City" required>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <a href="{{ url_for('register') }}" class="btn btn-outline-secondary rounded-3 me-auto"><i class="bi bi-person-plus me-1"></i>New Employee Registration</a>
+                    <button type="button" class="btn btn-secondary rounded-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-3 px-4" style="background-color: var(--gp-blue);">Save Shift Assignment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 <!-- Module 2: Timekeeping Modal -->
 <div class="modal fade" id="timekeepingModal" tabindex="-1" aria-hidden="true">
