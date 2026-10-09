@@ -126,10 +126,12 @@
 </style>
 
 <div class="dashboard-container">
-    <!-- LEFT SIDEBAR NAVIGATION (Gaya ng nasa layout) -->
+    <!-- LEFT SIDEBAR NAVIGATION -->
     <aside class="sidebar-nav">
         <div class="sidebar-brand d-flex align-items-center">
-            <i class="bi bi-building me-2 text-info"></i> HRIS Portal
+            <!-- Global Payments Logo sa Sidebar -->
+            <img src="{{ url_for('static', filename='images/gp_logo.png') }}" alt="Logo" style="height: 28px; width: 28px; object-fit: contain;" class="me-2" onerror="this.onerror=null; this.src='https://via.placeholder.com/28?text=G';">
+            <span>HRIS Portal</span>
         </div>
         <ul class="sidebar-menu">
             <li>

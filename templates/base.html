@@ -18,6 +18,7 @@
         }
         .navbar-gp {
             background-color: var(--gp-navy);
+            border-bottom: 1px solid #004070;
         }
         .user-profile-btn {
             text-decoration: none;
@@ -28,21 +29,41 @@
             opacity: 0.85;
             color: #ffffff;
         }
+        .role-badge-enclosed {
+            font-size: 0.85rem;
+            font-weight: 400;
+            color: #E2E8F0;
+            margin-left: 4px;
+        }
     </style>
 </head>
 <body>
+    <!-- TOP NAVBAR / HEADER -->
     <nav class="navbar navbar-expand-lg navbar-dark navbar-gp shadow-sm">
-        <div class="container-fluid px-4">
-            <a class="navbar-brand fw-bold" href="/dashboard">
-                <i class="bi bi-building-fill me-2"></i>Global Payments HRIS
+        <div class="container-fluid px-4 d-flex align-items-center justify-content-between">
+            
+            <!-- LOGO & BRAND NAME -->
+            <a class="navbar-brand fw-bold d-flex align-items-center" href="/dashboard">
+                <img src="{{ url_for('static', filename='images/gp_logo.png') }}" alt="Global Payments Logo" style="height: 36px; width: 36px; object-fit: contain;" class="me-2" onerror="this.onerror=null; this.src='https://via.placeholder.com/36?text=G';">
+                <span>Global Payments <span class="fw-light text-info fs-6">HRIS</span></span>
             </a>
+
+            <!-- USER PROFILE, ROLE BADGE, AT LOGOUT BUTTON -->
             <div class="d-flex align-items-center">
                 {% if session.get('user_id') %}
                 <a href="/profile" class="user-profile-btn d-flex align-items-center me-3">
                     <i class="bi bi-person-circle fs-5 me-2"></i>
-                    <span class="fw-semibold">{{ user.fullname if user and user.fullname else session.get('fullname', 'Employee Profile') }}</span>
+                    <span class="fw-semibold">
+                        {{ user.fullname if user and user.fullname else session.get('fullname', 'Employee Profile') }}
+                    </span>
+                    <!-- Role tag na enclosed sa parenthesis (employee, hr, admin) -->
+                    <span class="role-badge-enclosed">
+                        ({{ session.get('role', 'employee') | lower }})
+                    </span>
                 </a>
-                <a href="/logout" class="btn btn-outline-light btn-sm rounded-pill px-3">Logout</a>
+                
+                <!-- Logout Button gaya sa image reference -->
+                <a href="/logout" class="btn btn-outline-light btn-sm rounded-pill px-3 py-1">Logout</a>
                 {% endif %}
             </div>
         </div>
@@ -65,4 +86,4 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
-</html>
+</html>>
