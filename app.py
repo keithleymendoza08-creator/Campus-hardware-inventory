@@ -103,7 +103,8 @@ def login():
     if request.method == 'POST':
         db = get_db()
         with db.cursor() as cur:
-            user = cur.execute("SELECT * FROM users WHERE email=%s", (request.form['email'],)).fetchone()
+            cur.execute("SELECT * FROM users WHERE email=%s", (request.form['email'],))
+            user = cur.fetchone()
         if user and check_password_hash(user['password'], request.form['password']):
             session['user_id'] = user['id']
             session['role'] = user['role']
@@ -168,7 +169,8 @@ def reset_request():
 
     db = get_db()
     with db.cursor() as cur:
-        user = cur.execute("SELECT * FROM users WHERE email=%s", (email,)).fetchone()
+        cur.execute("SELECT * FROM users WHERE email=%s", (email,))
+        user = cur.fetchone()
         if not user:
             flash('Email address not found.', 'danger')
             return redirect(url_for('reset_request'))
@@ -306,10 +308,10 @@ def dashboard():
 
     try:
         with db.cursor() as cur:
-            # 1. Fetch current user profile
-            current_user = cur.execute("SELECT * FROM users WHERE id=%s", (session['user_id'],)).fetchone()
+            # 1. Fetch current user
+            cur.execute("SELECT * FROM users WHERE id=%s", (session['user_id'],))
+            current_user = cur.fetchone()
 
-            # Fallback if current_user query returns None
             if not current_user:
                 current_user = {
                     'fullname': session.get('fullname', 'Employee Profile'),
@@ -317,34 +319,47 @@ def dashboard():
                     'email': session.get('user_email', '')
                 }
 
-            # 2. Safely execute other dashboard metrics queries
-            employees = cur.execute("SELECT * FROM users WHERE fullname ILIKE %s ORDER BY id DESC", (f"%{q}%",)).fetchall() or []
-            
-            t_res = cur.execute("SELECT COUNT(*) as c FROM users WHERE role='employee'").fetchone()
-            total_employees = t_res['c'] if t_res else 0
-            
-            l_res = cur.execute("SELECT COUNT(*) as c FROM leave_applications WHERE status='Pending'").fetchone()
-            pending_leaves = l_res['c'] if l_res else 0
-            
-            p_res = cur.execute("SELECT SUM(net_pay) as c FROM payroll_records").fetchone()
-            total_payroll = p_res['c'] if p_res and p_res['c'] else 0.0
+            # 2. Employees search
+            cur.execute("SELECT * FROM users WHERE fullname ILIKE %s ORDER BY id DESC", (f"%{q}%",))
+            employees = cur.fetchall() or []
 
-            my_leaves = cur.execute("""
+            # 3. Total employees count
+            cur.execute("SELECT COUNT(*) as c FROM users WHERE role='employee'")
+            t_res = cur.fetchone()
+            total_employees = t_res['c'] if (t_res and 'c' in t_res) else 0
+
+            # 4. Pending leaves count
+            cur.execute("SELECT COUNT(*) as c FROM leave_applications WHERE status='Pending'")
+            l_res = cur.fetchone()
+            pending_leaves = l_res['c'] if (l_res and 'c' in l_res) else 0
+
+            # 5. Total payroll sum
+            cur.execute("SELECT SUM(net_pay) as c FROM payroll_records")
+            p_res = cur.fetchone()
+            total_payroll = p_res['c'] if (p_res and 'c' in p_res and p_res['c'] is not None) else 0.0
+
+            # 6. User's leave applications
+            cur.execute("""
                 SELECT * FROM leave_applications
                 WHERE user_id=%s ORDER BY date_created DESC
-            """, (session['user_id'],)).fetchall() or []
+            """, (session['user_id'],))
+            my_leaves = cur.fetchall() or []
 
-            pending_leaves_list = cur.execute("""
+            # 7. Pending leaves list
+            cur.execute("""
                 SELECT l.*, u.fullname, u.department, u.job_title FROM leave_applications l
                 JOIN users u ON u.id=l.user_id
                 WHERE l.status='Pending' ORDER BY l.date_created DESC
-            """).fetchall() or []
+            """)
+            pending_leaves_list = cur.fetchall() or []
 
-            timekeeping_records = cur.execute("""
+            # 8. Timekeeping records
+            cur.execute("""
                 SELECT t.*, u.fullname, u.department FROM timekeeping t
                 JOIN users u ON u.id=t.user_id
                 ORDER BY t.clock_in DESC LIMIT 20
-            """).fetchall() or []
+            """)
+            timekeeping_records = cur.fetchall() or []
 
         return render_template(
             'dashboard.html', 
@@ -394,11 +409,12 @@ def timekeeping():
 
     db = get_db()
     with db.cursor() as cur:
-        records = cur.execute("""
+        cur.execute("""
             SELECT t.*, u.fullname, u.department FROM timekeeping t
             JOIN users u ON u.id=t.user_id
             WHERE t.user_id=%s ORDER BY t.clock_in DESC
-        """, (session['user_id'],)).fetchall()
+        """, (session['user_id'],))
+        records = cur.fetchall() or []
     return render_template('timekeeping.html', records=records)
 
 @app.route('/leave/apply', methods=['POST'])
@@ -432,12 +448,15 @@ def profile():
                 return redirect('/profile')
     db = get_db()
     with db.cursor() as cur:
-        user = cur.execute("SELECT * FROM users WHERE id=%s", (session['user_id'],)).fetchone()
-        stats = cur.execute("""
+        cur.execute("SELECT * FROM users WHERE id=%s", (session['user_id'],))
+        user = cur.fetchone()
+        
+        cur.execute("""
             SELECT COUNT(*) as total_leaves, 
                    SUM(CASE WHEN status='Pending' THEN 1 ELSE 0 END) as pending 
             FROM leave_applications WHERE user_id=%s
-        """, (session['user_id'],)).fetchall()
+        """, (session['user_id'],))
+        stats = cur.fetchall() or []
     return render_template('profile.html', user=user, stats=stats)
 
 @app.route('/admin/approve_leave/<int:id>')
@@ -464,11 +483,12 @@ def export_payroll_csv():
         return redirect('/login')
     db = get_db()
     with db.cursor() as cur:
-        payroll_data = cur.execute("""
+        cur.execute("""
             SELECT p.*, u.fullname, u.department, u.employee_id 
             FROM payroll_records p
             JOIN users u ON u.id=p.user_id
-        """).fetchall()
+        """)
+        payroll_data = cur.fetchall() or []
     si = StringIO()
     w = csv.writer(si)
     w.writerow(['Employee ID', 'Fullname', 'Department', 'Basic Pay', 'Overtime Pay', 'Tardy Deductions', 'Tax Deductions', 'Net Pay'])
