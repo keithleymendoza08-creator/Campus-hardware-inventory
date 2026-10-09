@@ -44,7 +44,7 @@
             
             <!-- LOGO & BRAND NAME -->
             <a class="navbar-brand fw-bold d-flex align-items-center" href="/dashboard">
-                <img src="{{ url_for('static', filename='images/gp_logo.png') }}" alt="Global Payments Logo" style="height: 36px; width: 36px; object-fit: contain;" class="me-2" onerror="this.onerror=null; this.src='https://via.placeholder.com/36?text=G';">
+                <img src="{{ url_for('static', filename='gp_logo.png') }}" alt="Global Payments Logo" style="height: 36px; width: 36px; object-fit: contain;" class="me-2">
                 <span>Global Payments <span class="fw-light text-info fs-6">HRIS</span></span>
             </a>
 
@@ -56,13 +56,13 @@
                     <span class="fw-semibold">
                         {{ user.fullname if user and user.fullname else session.get('fullname', 'Employee Profile') }}
                     </span>
-                    <!-- Role tag na enclosed sa parenthesis (employee, hr, admin) -->
+                    <!-- Role tag na enclosed sa parenthesis -->
                     <span class="role-badge-enclosed">
                         ({{ session.get('role', 'employee') | lower }})
                     </span>
                 </a>
                 
-                <!-- Logout Button gaya sa image reference -->
+                <!-- Logout Button -->
                 <a href="/logout" class="btn btn-outline-light btn-sm rounded-pill px-3 py-1">Logout</a>
                 {% endif %}
             </div>
@@ -86,4 +86,4 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
-</html>>
+</html>
