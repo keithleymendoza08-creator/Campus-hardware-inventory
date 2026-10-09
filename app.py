@@ -42,11 +42,7 @@ def send_otp_email_worker(receiver_email, otp, intent):
             "name": "Global Payments HRIS",
             "email": SENDER_EMAIL
         },
-        "to": [
-            {
-                "email": receiver_email
-            }
-        ],
+        "to": [{"email": receiver_email}],
         "subject": f"Global Payments HRIS - {intent} OTP",
         "textContent": f"Your {intent} One-Time Password (OTP) is: {otp}\n\nThis OTP is valid for 5 minutes. Please enter this code to proceed. Do not share this code with anyone."
     }
@@ -113,7 +109,7 @@ def login():
         flash('Invalid email or password', 'danger')
     return render_template('login.html')
 
-# ===== REGISTER WITH OTP =====
+# ===== REGISTER WITH OTP (Module 1) =====
 @app.route('/register', methods=['GET','POST'])
 def register():
     if request.method == 'GET':
@@ -154,40 +150,6 @@ def register():
 
     return redirect(url_for("verify_otp", action="register"))
 
-# ===== STEP 1 FORGOT PASSWORD: REQUEST EMAIL =====
-@app.route('/forgot', methods=['GET', 'POST'])
-@app.route('/reset-request', methods=['GET', 'POST'])
-def reset_request():
-    if request.method == 'GET':
-        return render_template('forgot.html')
-
-    email = request.form.get('email', '').strip()
-
-    if not email:
-        flash('Please enter your email address.', 'danger')
-        return redirect(url_for('reset_request'))
-
-    db = get_db()
-    with db.cursor() as cur:
-        cur.execute("SELECT * FROM users WHERE email=%s", (email,))
-        user = cur.fetchone()
-        if not user:
-            flash('Email address not found.', 'danger')
-            return redirect(url_for('reset_request'))
-
-    otp = str(random.randint(100000, 999999))
-    session['pending_reset'] = {
-        'email': email,
-        'otp': otp,
-        'otp_expiry': time.time() + 300
-    }
-
-    threading.Thread(target=send_otp_email_worker, args=(email, otp, "Password Reset")).start()
-    flash("We sent a 6-digit OTP code to your email address. Please check your Inbox / Spam folder.", "info")
-
-    return redirect(url_for("verify_otp", action="reset"))
-
-# ===== STEP 2: VERIFY OTP ROUTE =====
 @app.route('/verify-otp/<action>', methods=['GET', 'POST'])
 def verify_otp(action):
     session_key = 'pending_user' if action == 'register' else 'pending_reset'
@@ -223,81 +185,17 @@ def verify_otp(action):
                     print("Registration Error:", e)
                     flash("Email or Employee ID already exists in the system.", "danger")
                     return redirect(url_for("register"))
-
-            elif action == "reset":
-                session['otp_verified_for_reset'] = True
-                flash("OTP code verified! Please set your new password.", "success")
-                return redirect(url_for("set_new_password"))
         else:
             flash("Invalid OTP code. Try again.", "danger")
 
     return render_template("otp_verify.html", action_url=url_for('verify_otp', action=action), action=action)
-
-# ===== STEP 3: SET NEW PASSWORD AFTER OTP VERIFICATION =====
-@app.route('/set-new-password', methods=['GET', 'POST'])
-def set_new_password():
-    if 'pending_reset' not in session or not session.get('otp_verified_for_reset'):
-        flash("Unauthorized access. Please request a password reset first.", "danger")
-        return redirect(url_for("reset_request"))
-
-    if request.method == 'POST':
-        new_password = request.form.get('new_password', '').strip()
-        confirm_password = request.form.get('confirm_password', '').strip()
-
-        if len(new_password) < 8:
-            flash('Password must be at least 8 characters.', 'danger')
-            return render_template('reset_password.html')
-
-        if new_password != confirm_password:
-            flash('Passwords do not match.', 'danger')
-            return render_template('reset_password.html')
-
-        email = session['pending_reset']['email']
-        try:
-            db = get_db()
-            hashed = generate_password_hash(new_password)
-            with db.cursor() as cur:
-                cur.execute("UPDATE users SET password=%s WHERE email=%s", (hashed, email))
-                db.commit()
-
-            session.pop('pending_reset', None)
-            session.pop('otp_verified_for_reset', None)
-            flash("Password successfully reset! You can now login with your new password.", "success")
-            return redirect(url_for("login"))
-        except Exception as e:
-            print("Reset Error:", e)
-            flash("Failed to update password. Please try again.", "danger")
-            return redirect(url_for("reset_request"))
-
-    return render_template('reset_password.html')
-
-# ===== RESEND OTP ROUTE =====
-@app.route('/resend-otp/<action>', methods=['GET'])
-def resend_otp(action):
-    session_key = 'pending_user' if action == 'register' else 'pending_reset'
-
-    if session_key not in session:
-        flash("Session expired. Please restart the process.", "warning")
-        return redirect(url_for("register" if action == "register" else "reset_request"))
-
-    data = session[session_key]
-    new_otp = str(random.randint(100000, 999999))
-    
-    data['otp'] = new_otp
-    data['otp_expiry'] = time.time() + 300
-    session[session_key] = data
-
-    intent = "Account Registration" if action == "register" else "Password Reset"
-    threading.Thread(target=send_otp_email_worker, args=(data['email'], new_otp, intent)).start()
-
-    flash("A new 6-digit OTP code has been sent to your email address.", "info")
-    return redirect(url_for("verify_otp", action=action))
 
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect('/login')
 
+# ===== MAIN DASHBOARD (Hosts 8 Modules) =====
 @app.route('/dashboard')
 def dashboard():
     if 'user_id' not in session:
@@ -308,7 +206,6 @@ def dashboard():
 
     try:
         with db.cursor() as cur:
-            # 1. Fetch current user
             cur.execute("SELECT * FROM users WHERE id=%s", (session['user_id'],))
             current_user = cur.fetchone()
 
@@ -319,33 +216,24 @@ def dashboard():
                     'email': session.get('user_email', '')
                 }
 
-            # 2. Employees search
             cur.execute("SELECT * FROM users WHERE fullname ILIKE %s ORDER BY id DESC", (f"%{q}%",))
             employees = cur.fetchall() or []
 
-            # 3. Total employees count
             cur.execute("SELECT COUNT(*) as c FROM users WHERE role='employee'")
             t_res = cur.fetchone()
             total_employees = t_res['c'] if (t_res and 'c' in t_res) else 0
 
-            # 4. Pending leaves count
             cur.execute("SELECT COUNT(*) as c FROM leave_applications WHERE status='Pending'")
             l_res = cur.fetchone()
             pending_leaves = l_res['c'] if (l_res and 'c' in l_res) else 0
 
-            # 5. Total payroll sum
             cur.execute("SELECT SUM(net_pay) as c FROM payroll_records")
             p_res = cur.fetchone()
             total_payroll = p_res['c'] if (p_res and 'c' in p_res and p_res['c'] is not None) else 0.0
 
-            # 6. User's leave applications
-            cur.execute("""
-                SELECT * FROM leave_applications
-                WHERE user_id=%s ORDER BY date_created DESC
-            """, (session['user_id'],))
+            cur.execute("SELECT * FROM leave_applications WHERE user_id=%s ORDER BY date_created DESC", (session['user_id'],))
             my_leaves = cur.fetchall() or []
 
-            # 7. Pending leaves list
             cur.execute("""
                 SELECT l.*, u.fullname, u.department, u.job_title FROM leave_applications l
                 JOIN users u ON u.id=l.user_id
@@ -353,7 +241,6 @@ def dashboard():
             """)
             pending_leaves_list = cur.fetchall() or []
 
-            # 8. Timekeeping records
             cur.execute("""
                 SELECT t.*, u.fullname, u.department FROM timekeeping t
                 JOIN users u ON u.id=t.user_id
@@ -393,6 +280,7 @@ def dashboard():
             search_q=q
         )
 
+# ===== MODULE 2 & 3: TIMEKEEPING & TARDINESS =====
 @app.route('/timekeeping', methods=['GET', 'POST'])
 def timekeeping():
     if 'user_id' not in session:
@@ -405,7 +293,7 @@ def timekeeping():
         elif action_type == 'time_out':
             hris.record_time_out(session['user_id'])
             flash('Successfully Clocked Out!', 'success')
-        return redirect('/timekeeping')
+        return redirect('/dashboard')
 
     db = get_db()
     with db.cursor() as cur:
@@ -417,6 +305,7 @@ def timekeeping():
         records = cur.fetchall() or []
     return render_template('timekeeping.html', records=records)
 
+# ===== MODULE 4: LEAVE APPLICATION =====
 @app.route('/leave/apply', methods=['POST'])
 def apply_leave():
     if 'user_id' not in session:
@@ -430,6 +319,48 @@ def apply_leave():
     )
     flash(msg, 'success' if ok else 'danger')
     return redirect('/dashboard')
+
+# ===== MODULE 5: MULTI-LEVEL APPROVAL =====
+@app.route('/admin/approve_leave/<int:id>')
+def approve_leave(id):
+    if session.get('role') not in ['admin', 'hr_manager', 'supervisor']:
+        flash('Unauthorized access for leave approval.', 'danger')
+        return redirect('/dashboard')
+    ok, msg = hris.approve_leave(id, session['user_id'])
+    flash(msg, 'success' if ok else 'danger')
+    return redirect('/dashboard')
+
+# ===== MODULE 6 & 7: PAYROLL CUT-OFF & LOCKING =====
+@app.route('/admin/calculate_payroll', methods=['POST'])
+def calculate_payroll():
+    if session.get('role') not in ['admin', 'hr_manager']:
+        flash('Unauthorized access for payroll processing.', 'danger')
+        return redirect('/dashboard')
+    period_start = request.form.get('period_start')
+    period_end = request.form.get('period_end')
+    hris.process_periodic_payroll(period_start, period_end)
+    flash(f"Payroll successfully processed and locked for period {period_start} to {period_end}.", 'success')
+    return redirect('/dashboard')
+
+# ===== MODULE 8: DTR & PAYSLIP PRINTING (CSV EXPORT) =====
+@app.route('/export_payroll_csv')
+def export_payroll_csv():
+    if 'user_id' not in session:
+        return redirect('/login')
+    db = get_db()
+    with db.cursor() as cur:
+        cur.execute("""
+            SELECT p.*, u.fullname, u.department, u.employee_id 
+            FROM payroll_records p
+            JOIN users u ON u.id=p.user_id
+        """)
+        payroll_data = cur.fetchall() or []
+    si = StringIO()
+    w = csv.writer(si)
+    w.writerow(['Employee ID', 'Fullname', 'Department', 'Basic Pay', 'Overtime Pay', 'Tardy Deductions', 'Tax Deductions', 'Net Pay'])
+    for p in payroll_data:
+        w.writerow([p['employee_id'], p['fullname'], p['department'], p['basic_pay'], p['overtime_pay'], p['tardy_deductions'], p['tax_deductions'], p['net_pay']])
+    return Response(si.getvalue(), mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=global_payments_payroll_register.csv"})
 
 @app.route('/profile', methods=['GET','POST'])
 def profile():
@@ -450,7 +381,6 @@ def profile():
     with db.cursor() as cur:
         cur.execute("SELECT * FROM users WHERE id=%s", (session['user_id'],))
         user = cur.fetchone()
-        
         cur.execute("""
             SELECT COUNT(*) as total_leaves, 
                    SUM(CASE WHEN status='Pending' THEN 1 ELSE 0 END) as pending 
@@ -458,43 +388,6 @@ def profile():
         """, (session['user_id'],))
         stats = cur.fetchall() or []
     return render_template('profile.html', user=user, stats=stats)
-
-@app.route('/admin/approve_leave/<int:id>')
-def approve_leave(id):
-    if session.get('role') not in ['admin', 'hr_manager', 'supervisor']:
-        return redirect('/dashboard')
-    ok, msg = hris.approve_leave(id, session['user_id'])
-    flash(msg, 'success' if ok else 'danger')
-    return redirect('/dashboard')
-
-@app.route('/admin/calculate_payroll', methods=['POST'])
-def calculate_payroll():
-    if session.get('role') not in ['admin', 'hr_manager']:
-        return redirect('/dashboard')
-    period_start = request.form.get('period_start')
-    period_end = request.form.get('period_end')
-    hris.process_periodic_payroll(period_start, period_end)
-    flash(f"Payroll successfully processed for period {period_start} to {period_end}.", 'success')
-    return redirect('/dashboard')
-
-@app.route('/export_payroll_csv')
-def export_payroll_csv():
-    if 'user_id' not in session:
-        return redirect('/login')
-    db = get_db()
-    with db.cursor() as cur:
-        cur.execute("""
-            SELECT p.*, u.fullname, u.department, u.employee_id 
-            FROM payroll_records p
-            JOIN users u ON u.id=p.user_id
-        """)
-        payroll_data = cur.fetchall() or []
-    si = StringIO()
-    w = csv.writer(si)
-    w.writerow(['Employee ID', 'Fullname', 'Department', 'Basic Pay', 'Overtime Pay', 'Tardy Deductions', 'Tax Deductions', 'Net Pay'])
-    for p in payroll_data:
-        w.writerow([p['employee_id'], p['fullname'], p['department'], p['basic_pay'], p['overtime_pay'], p['tardy_deductions'], p['tax_deductions'], p['net_pay']])
-    return Response(si.getvalue(), mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=global_payments_payroll_register.csv"})
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

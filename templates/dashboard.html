@@ -64,7 +64,7 @@
 </div>
 
 <div class="row g-4">
-    <!-- Module 1 -->
+    <!-- Module 1: Registration -->
     <div class="col-md-6 col-lg-4">
         <a href="{{ url_for('register') }}" class="module-card-link">
             <div class="module-card">
@@ -75,73 +75,61 @@
         </a>
     </div>
 
-    <!-- Module 2 -->
+    <!-- Module 2: Time In / Time Out -->
     <div class="col-md-6 col-lg-4">
-        <a href="{{ url_for('timekeeping') }}" class="module-card-link">
-            <div class="module-card">
-                <div class="module-number">2</div>
-                <div class="module-title">Daily Time-In / Time-Out</div>
-                <p class="module-desc">Compare clock timestamps against assigned shift boundaries.</p>
-            </div>
-        </a>
+        <div class="module-card" data-bs-toggle="modal" data-bs-target="#timekeepingModal">
+            <div class="module-number">2</div>
+            <div class="module-title">Daily Time-In / Time-Out</div>
+            <p class="module-desc">Compare clock timestamps against assigned shift boundaries.</p>
+        </div>
     </div>
 
-    <!-- Module 3 -->
+    <!-- Module 3: Tardiness & Undertime Ledger -->
     <div class="col-md-6 col-lg-4">
-        <a href="{{ url_for('timekeeping') }}" class="module-card-link">
-            <div class="module-card">
-                <div class="module-number">3</div>
-                <div class="module-title">Tardiness & Undertime Ledger</div>
-                <p class="module-desc">Calculate late minutes after grace period and daily undertime.</p>
-            </div>
-        </a>
+        <div class="module-card" data-bs-toggle="modal" data-bs-target="#tardinessModal">
+            <div class="module-number">3</div>
+            <div class="module-title">Tardiness & Undertime Ledger</div>
+            <p class="module-desc">Calculate late minutes after grace period and daily undertime.</p>
+        </div>
     </div>
 
-    <!-- Module 4 -->
+    <!-- Module 4: Leave Application -->
     <div class="col-md-6 col-lg-4">
-        <a href="{{ url_for('profile') }}" class="module-card-link">
-            <div class="module-card">
-                <div class="module-number">4</div>
-                <div class="module-title">Leave Application</div>
-                <p class="module-desc">File leave type; validate available leave balance.</p>
-            </div>
-        </a>
+        <div class="module-card" data-bs-toggle="modal" data-bs-target="#leaveModal">
+            <div class="module-number">4</div>
+            <div class="module-title">Leave Application</div>
+            <p class="module-desc">File leave type; validate available leave balance.</p>
+        </div>
     </div>
 
-    <!-- Module 5 -->
+    <!-- Module 5: Multi-Level Approval -->
     <div class="col-md-6 col-lg-4">
-        <a href="{{ url_for('profile') }}" class="module-card-link">
-            <div class="module-card">
-                <div class="module-number">5</div>
-                <div class="module-title">Multi-Level Approval</div>
-                <p class="module-desc">Supervisor endorses; HR approves and updates leave credits.</p>
-            </div>
-        </a>
+        <div class="module-card" data-bs-toggle="modal" data-bs-target="#approvalModal">
+            <div class="module-number">5</div>
+            <div class="module-title">Multi-Level Approval</div>
+            <p class="module-desc">Supervisor endorses; HR approves and updates leave credits.</p>
+        </div>
     </div>
 
-    <!-- Module 6 -->
+    <!-- Module 6: Payroll Cut-Off & Deductions -->
     <div class="col-md-6 col-lg-4">
-        <a href="{{ url_for('export_payroll_csv') }}" class="module-card-link">
-            <div class="module-card">
-                <div class="module-number">6</div>
-                <div class="module-title">Payroll Cut-Off & Deductions</div>
-                <p class="module-desc">Aggregate work, overtime, tardiness, absences, and taxes.</p>
-            </div>
-        </a>
+        <div class="module-card" data-bs-toggle="modal" data-bs-target="#payrollCutoffModal">
+            <div class="module-number">6</div>
+            <div class="module-title">Payroll Cut-Off & Deductions</div>
+            <p class="module-desc">Aggregate work, overtime, tardiness, absences, and taxes.</p>
+        </div>
     </div>
 
-    <!-- Module 7 -->
+    <!-- Module 7: Payroll Locking -->
     <div class="col-md-6 col-lg-4">
-        <a href="{{ url_for('export_payroll_csv') }}" class="module-card-link">
-            <div class="module-card">
-                <div class="module-number">7</div>
-                <div class="module-title">Payroll Locking</div>
-                <p class="module-desc">HR audits totals and locks the period against retroactive edits.</p>
-            </div>
-        </a>
+        <div class="module-card" data-bs-toggle="modal" data-bs-target="#payrollLockModal">
+            <div class="module-number">7</div>
+            <div class="module-title">Payroll Locking</div>
+            <p class="module-desc">HR audits totals and locks the period against retroactive edits.</p>
+        </div>
     </div>
 
-    <!-- Module 8 -->
+    <!-- Module 8: DTR & Payslip Printing -->
     <div class="col-md-6 col-lg-4">
         <a href="{{ url_for('export_payroll_csv') }}" class="module-card-link">
             <div class="module-card">
@@ -152,4 +140,208 @@
         </a>
     </div>
 </div>
+
+<!-- ================= MODALS SECTION ================= -->
+
+<!-- Module 2: Timekeeping Modal -->
+<div class="modal fade" id="timekeepingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header text-white" style="background-color: var(--gp-navy);">
+                <h5 class="modal-title fw-bold"><i class="bi bi-stopwatch me-2"></i>Daily Time-In / Time-Out</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('timekeeping') }}" method="POST">
+                <div class="modal-body text-center p-4">
+                    <p class="text-muted">Record your daily shift attendance timestamps below.</p>
+                    <div class="d-grid gap-3 col-10 mx-auto">
+                        <button type="submit" name="action" value="time_in" class="btn btn-success btn-lg rounded-3 fw-bold">
+                            <i class="bi bi-box-arrow-in-right me-2"></i>Clock IN
+                        </button>
+                        <button type="submit" name="action" value="time_out" class="btn btn-danger btn-lg rounded-3 fw-bold">
+                            <i class="bi bi-box-arrow-right me-2"></i>Clock OUT
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Module 3: Tardiness Ledger Modal -->
+<div class="modal fade" id="tardinessModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header text-white" style="background-color: var(--gp-navy);">
+                <h5 class="modal-title fw-bold"><i class="bi bi-clock-history me-2"></i>Tardiness & Undertime Ledger</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Employee</th>
+                                <th>Clock In</th>
+                                <th>Clock Out</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if timekeeping_records %}
+                                {% for t in timekeeping_records %}
+                                <tr>
+                                    <td>{{ t.fullname }}</td>
+                                    <td>{{ t.clock_in }}</td>
+                                    <td>{{ t.clock_out if t.clock_out else 'Active' }}</td>
+                                    <td><span class="badge bg-info text-dark">Logged</span></td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr><td colspan="4" class="text-center text-muted">No timekeeping logs available.</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Module 4: Leave Application Modal -->
+<div class="modal fade" id="leaveModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header text-white" style="background-color: var(--gp-navy);">
+                <h5 class="modal-title fw-bold"><i class="bi bi-calendar-plus me-2"></i>File Leave Application</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('apply_leave') }}" method="POST">
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Leave Type</label>
+                        <select name="leave_type" class="form-select" required>
+                            <option value="" disabled selected>Select Leave Type</option>
+                            <option value="Vacation Leave">Vacation Leave</option>
+                            <option value="Sick Leave">Sick Leave</option>
+                            <option value="Emergency Leave">Emergency Leave</option>
+                        </select>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Start Date</label>
+                            <input type="date" name="start_date" class="form-control" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">End Date</label>
+                            <input type="date" name="end_date" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Reason</label>
+                        <textarea name="reason" class="form-control" rows="3" placeholder="Enter reason..." required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary rounded-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-3 px-4" style="background-color: var(--gp-blue);">Submit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Module 5: Multi-Level Approval Modal -->
+<div class="modal fade" id="approvalModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header text-white" style="background-color: var(--gp-navy);">
+                <h5 class="modal-title fw-bold"><i class="bi bi-check-circle me-2"></i>Pending Leave Approvals</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Employee</th>
+                                <th>Type</th>
+                                <th>Dates</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if pending_leaves %}
+                                {% for l in pending_leaves %}
+                                <tr>
+                                    <td>{{ l.fullname }}</td>
+                                    <td>{{ l.leave_type }}</td>
+                                    <td>{{ l.start_date }} to {{ l.end_date }}</td>
+                                    <td>
+                                        <a href="{{ url_for('approve_leave', id=l.id) }}" class="btn btn-success btn-sm rounded-pill">Approve</a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr><td colspan="4" class="text-center text-muted">No pending leave requests.</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Module 6: Payroll Cut-Off Modal -->
+<div class="modal fade" id="payrollCutoffModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header text-white" style="background-color: var(--gp-navy);">
+                <h5 class="modal-title fw-bold"><i class="bi bi-calculator me-2"></i>Calculate Periodic Payroll</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="{{ url_for('calculate_payroll') }}" method="POST">
+                <div class="modal-body p-4">
+                    <div class="row g-3 mb-3">
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Period Start</label>
+                            <input type="date" name="period_start" class="form-control" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label fw-semibold">Period End</label>
+                            <input type="date" name="period_end" class="form-control" required>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary rounded-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success rounded-3 px-4">Process Cut-Off</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Module 7: Payroll Locking Modal -->
+<div class="modal fade" id="payrollLockModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header text-white" style="background-color: var(--gp-navy);">
+                <h5 class="modal-title fw-bold"><i class="bi bi-lock me-2"></i>Payroll Audit & Locking</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center p-4">
+                <i class="bi bi-shield-check text-success display-4 mb-3"></i>
+                <h5>Lock Payroll Period</h5>
+                <p class="text-muted">Auditing completes calculations and locks the selected cutoff against retroactive timekeeping edits.</p>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary rounded-3" data-bs-dismiss="modal">Close</button>
+                <a href="{{ url_for('export_payroll_csv') }}" class="btn btn-danger rounded-3 px-4">Lock & Export</a>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
