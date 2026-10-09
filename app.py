@@ -97,8 +97,11 @@ def close(exception):
     if db:
         db.close()
 
+# ===== ROUTE REDIRECT: BUNGAD AGAD SA DASHBOARD PAG LOGGED IN =====
 @app.route('/')
 def index():
+    if 'user_id' in session:
+        return redirect('/dashboard')
     return redirect('/login')
 
 @app.route('/login', methods=['GET','POST'])
@@ -116,7 +119,7 @@ def login():
         flash('Invalid email or password', 'danger')
     return render_template('login.html')
 
-# ===== REGISTER WITH OTP (Module 1) =====
+# ===== REGISTER WITH OTP =====
 @app.route('/register', methods=['GET','POST'])
 def register():
     if request.method == 'GET':
@@ -130,7 +133,6 @@ def register():
     department = request.form.get('department','').strip()
     job_title = request.form.get('job_title','').strip()
     
-    # Optional Shift inputs during registration (or set defaults)
     shift_start = request.form.get('shift_start', '09:00').strip()
     shift_end = request.form.get('shift_end', '18:00').strip()
     work_location = request.form.get('work_location', 'Cubao Quezon City').strip()
@@ -217,7 +219,7 @@ def logout():
     session.clear()
     return redirect('/login')
 
-# ===== MAIN DASHBOARD (Hosts Modules) =====
+# ===== MAIN DASHBOARD (HANDLES SIDEBAR & HOME LANDING PAGE) =====
 @app.route('/dashboard')
 def dashboard():
     if 'user_id' not in session:
@@ -247,7 +249,7 @@ def dashboard():
 
             cur.execute("SELECT COUNT(*) as c FROM leave_applications WHERE status='Pending'")
             l_res = cur.fetchone()
-            pending_leaves = l_res['c'] if (l_res and 'c' in l_res) else 0
+            pending_leaves_count = l_res['c'] if (l_res and 'c' in l_res) else 0
 
             cur.execute("SELECT SUM(net_pay) as c FROM payroll_records")
             p_res = cur.fetchone()
@@ -278,7 +280,7 @@ def dashboard():
             pending_leaves=pending_leaves_list, 
             timekeeping_records=timekeeping_records, 
             total_employees=total_employees, 
-            pending_leaves_count=pending_leaves, 
+            pending_leaves_count=pending_leaves_count, 
             total_payroll=total_payroll, 
             search_q=q
         )
@@ -305,7 +307,6 @@ def dashboard():
 # ===== SHIFT ASSIGNMENT MANAGEMENT =====
 @app.route('/admin/assign_shift', methods=['POST'])
 def assign_shift():
-    """Allows Admin/HR to update employee shift schedule and rest days."""
     if session.get('role') not in ['admin', 'hr_manager', 'supervisor']:
         flash('Unauthorized access for shift management.', 'danger')
         return redirect('/dashboard')
@@ -313,7 +314,7 @@ def assign_shift():
     user_id = request.form.get('user_id')
     shift_start = request.form.get('shift_start')
     shift_end = request.form.get('shift_end')
-    rest_days = request.form.getlist('rest_days')  # List of selected rest days
+    rest_days = request.form.getlist('rest_days')
     work_location = request.form.get('work_location', 'Cubao Quezon City')
 
     rest_days_str = ",".join(rest_days) if rest_days else "Saturday,Sunday"
@@ -334,7 +335,7 @@ def assign_shift():
 
     return redirect('/dashboard')
 
-# ===== MODULE 2 & 3: TIMEKEEPING & TARDINESS =====
+# ===== TIMEKEEPING & TARDINESS =====
 @app.route('/timekeeping', methods=['GET', 'POST'])
 def timekeeping():
     if 'user_id' not in session:
@@ -359,7 +360,7 @@ def timekeeping():
         records = cur.fetchall() or []
     return render_template('timekeeping.html', records=records)
 
-# ===== MODULE 4: LEAVE APPLICATION =====
+# ===== LEAVE APPLICATION =====
 @app.route('/leave/apply', methods=['POST'])
 def apply_leave():
     if 'user_id' not in session:
@@ -374,7 +375,7 @@ def apply_leave():
     flash(msg, 'success' if ok else 'danger')
     return redirect('/dashboard')
 
-# ===== MODULE 5: MULTI-LEVEL APPROVAL =====
+# ===== MULTI-LEVEL APPROVAL =====
 @app.route('/admin/approve_leave/<int:id>')
 def approve_leave(id):
     if session.get('role') not in ['admin', 'hr_manager', 'supervisor']:
@@ -384,7 +385,7 @@ def approve_leave(id):
     flash(msg, 'success' if ok else 'danger')
     return redirect('/dashboard')
 
-# ===== MODULE 6 & 7: PAYROLL CUT-OFF & LOCKING =====
+# ===== PAYROLL CUT-OFF & LOCKING =====
 @app.route('/admin/calculate_payroll', methods=['POST'])
 def calculate_payroll():
     if session.get('role') not in ['admin', 'hr_manager']:
@@ -396,7 +397,7 @@ def calculate_payroll():
     flash(f"Payroll successfully processed and locked for period {period_start} to {period_end}.", 'success')
     return redirect('/dashboard')
 
-# ===== MODULE 8: DTR & PAYSLIP PRINTING (CSV EXPORT) =====
+# ===== DTR & PAYSLIP PRINTING (CSV EXPORT) =====
 @app.route('/export_payroll_csv')
 def export_payroll_csv():
     if 'user_id' not in session:

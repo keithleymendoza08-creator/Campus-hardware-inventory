@@ -11,145 +11,292 @@
         --gp-bg: #F8FAFC;
     }
 
-    .module-card-link {
+    body {
+        background-color: var(--gp-bg);
+    }
+
+    /* Container layout para sa Sidebar at Main Content */
+    .dashboard-container {
+        display: flex;
+        min-height: 85vh;
+        margin: -1.5rem; /* Panatilihing edge-to-edge sa base layout */
+    }
+
+    /* --- LEFT SIDEBAR STYLES --- */
+    .sidebar-nav {
+        width: 260px;
+        background-color: #1E293B;
+        color: #FFFFFF;
+        flex-shrink: 0;
+        padding-top: 1rem;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .sidebar-brand {
+        padding: 0 1.5rem 1.5rem 1.5rem;
+        font-size: 1.1rem;
+        font-weight: 700;
+        border-bottom: 1px solid #334155;
+        color: #FFFFFF;
+    }
+
+    .sidebar-menu {
+        list-style: none;
+        padding: 0;
+        margin: 1rem 0;
+    }
+
+    .sidebar-link {
+        display: flex;
+        align-items: center;
+        padding: 12px 20px;
+        color: #94A3B8;
         text-decoration: none;
-        color: inherit;
-        display: block;
-        height: 100%;
+        font-weight: 500;
+        font-size: 0.95rem;
+        transition: all 0.2s ease;
     }
 
-    .module-card {
-        background: #ffffff;
-        border-radius: 16px;
-        padding: 24px;
+    .sidebar-link:hover,
+    .sidebar-link.active {
+        background-color: var(--gp-blue);
+        color: #FFFFFF;
+    }
+
+    .sidebar-link i {
+        margin-right: 12px;
+        font-size: 1.1rem;
+        width: 20px;
+        text-align: center;
+    }
+
+    .sidebar-badge {
+        margin-left: auto;
+        background-color: #38BDF8;
+        color: #0F172A;
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 2px 8px;
+        border-radius: 12px;
+    }
+
+    /* --- MAIN CONTENT AREA --- */
+    .main-dashboard-content {
+        flex-grow: 1;
+        padding: 2rem;
+        background-color: #FFFFFF;
+        overflow-y: auto;
+    }
+
+    .payroll-hero-card {
+        background: #FFFFFF;
+        border-radius: 12px;
         border: 1px solid #E2E8F0;
+        padding: 2.5rem;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-        transition: all 0.3s ease;
-        height: 100%;
-        position: relative;
-        cursor: pointer;
     }
 
-    .module-card:hover {
-        transform: translateY(-4px);
-        box-shadow: 0 12px 20px -5px rgba(0, 43, 73, 0.15);
+    .payroll-icon-wrapper {
+        color: var(--gp-accent);
+        text-align: center;
+    }
+
+    .module-summary-card {
+        background: #F8FAFC;
+        border-radius: 10px;
+        border: 1px solid #E2E8F0;
+        padding: 1.25rem;
+        height: 100%;
+        transition: transform 0.2s ease;
+    }
+
+    .module-summary-card:hover {
+        transform: translateY(-2px);
         border-color: var(--gp-blue);
     }
 
-    .module-number {
-        font-size: 1.5rem;
+    .module-num-badge {
+        display: inline-block;
         font-weight: 800;
         color: #FF5E14;
-        margin-bottom: 12px;
-    }
-
-    .module-title {
         font-size: 1.1rem;
-        font-weight: 700;
-        color: var(--gp-navy);
-        margin-bottom: 8px;
-    }
-
-    .module-desc {
-        font-size: 0.88rem;
-        color: #64748B;
-        line-height: 1.5;
-        margin: 0;
+        margin-right: 8px;
     }
 </style>
 
-<div class="mb-4">
-    <h2 class="fw-bold mb-1" style="color: var(--gp-navy);">HRIS Modules & Workflow</h2>
-    <p class="text-muted">Select an operational module to manage employee records, timekeeping, and payroll processing.</p>
+<div class="dashboard-container">
+    <!-- LEFT SIDEBAR NAVIGATION (Gaya ng nasa layout) -->
+    <aside class="sidebar-nav">
+        <div class="sidebar-brand d-flex align-items-center">
+            <i class="bi bi-building me-2 text-info"></i> HRIS Portal
+        </div>
+        <ul class="sidebar-menu">
+            <li>
+                <a href="{{ url_for('dashboard') }}" class="sidebar-link active">
+                    <i class="bi bi-house-door"></i> Home
+                </a>
+            </li>
+            <li>
+                <a href="#payroll-info" class="sidebar-link">
+                    <i class="bi bi-cash-stack"></i> Corporate Payroll
+                </a>
+            </li>
+            <li>
+                <a href="#" class="sidebar-link" data-bs-toggle="modal" data-bs-target="#timekeepingModal">
+                    <i class="bi bi-clock"></i> Timekeeping
+                </a>
+            </li>
+            <li>
+                <a href="#" class="sidebar-link" data-bs-toggle="modal" data-bs-target="#leaveModal">
+                    <i class="bi bi-calendar-check"></i> Leave Application
+                </a>
+            </li>
+            {% if session.get('role') in ['admin', 'hr_manager', 'supervisor'] %}
+            <li>
+                <a href="#" class="sidebar-link" data-bs-toggle="modal" data-bs-target="#approvalModal">
+                    <i class="bi bi-check2-square"></i> Pending Approvals
+                    {% if pending_leaves_count %}
+                    <span class="sidebar-badge">{{ pending_leaves_count }}</span>
+                    {% endif %}
+                </a>
+            </li>
+            <li>
+                <a href="#" class="sidebar-link" data-bs-toggle="modal" data-bs-target="#shiftAssignmentModal">
+                    <i class="bi bi-person-gear"></i> Shift Management
+                </a>
+            </li>
+            <li>
+                <a href="#" class="sidebar-link" data-bs-toggle="modal" data-bs-target="#payrollCutoffModal">
+                    <i class="bi bi-calculator"></i> Payroll Processing
+                </a>
+            </li>
+            {% endif %}
+            <li>
+                <a href="{{ url_for('export_payroll_csv') }}" class="sidebar-link">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> Export Payslips
+                </a>
+            </li>
+            <li class="mt-auto">
+                <a href="{{ url_for('logout') }}" class="sidebar-link text-danger">
+                    <i class="bi bi-box-arrow-right"></i> Logout
+                </a>
+            </li>
+        </ul>
+    </aside>
+
+    <!-- MAIN LANDING CONTENT AREA -->
+    <main class="main-dashboard-content">
+        <!-- CORPORATE PAYROLL LANDING SECTION -->
+        <div class="payroll-hero-card mb-5" id="payroll-info">
+            <div class="row align-items-center g-4">
+                <div class="col-lg-4 text-center">
+                    <div class="payroll-icon-wrapper">
+                        <!-- Money Hand Graphic Icon -->
+                        <i class="bi bi-cash-coin" style="font-size: 9rem; color: #00A3E0;"></i>
+                    </div>
+                </div>
+                <div class="col-lg-8">
+                    <h2 class="fw-bold mb-3" style="color: var(--gp-navy);">What Does Corporate Payroll Do?</h2>
+                    <p class="text-secondary fs-6 leading-relaxed mb-4">
+                        Payroll is responsible for ensuring all employees are paid accurately and on time. We manage and process pay, from approved time reporting to final paycheck delivery, while ensuring compliance with tax and legal requirements.
+                    </p>
+
+                    <h5 class="fw-bold mb-3" style="color: var(--gp-navy);">How Payroll Can Help You:</h5>
+                    <p class="text-muted mb-3">We're available to assist with questions related to:</p>
+
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2 d-flex align-items-start">
+                            <i class="bi bi-dot text-primary fs-4 me-1 line-height-1"></i>
+                            <div><strong>Payroll Calendars & Paystubs:</strong> Understanding pay dates and reviewing your pay statements.</div>
+                        </li>
+                        <li class="mb-2 d-flex align-items-start">
+                            <i class="bi bi-dot text-primary fs-4 me-1 line-height-1"></i>
+                            <div><strong>Gross-to-Net Pay Processing:</strong> Ensuring your earnings, taxes, and deductions are calculated correctly.</div>
+                        </li>
+                        <li class="mb-2 d-flex align-items-start">
+                            <i class="bi bi-dot text-primary fs-4 me-1 line-height-1"></i>
+                            <div><strong>Approved Time & Payments:</strong> Processing EIS-approved hours, leaves, bonuses, and other pay elements.</div>
+                        </li>
+                        <li class="mb-2 d-flex align-items-start">
+                            <i class="bi bi-dot text-primary fs-4 me-1 line-height-1"></i>
+                            <div><strong>Pay Calculations & Reconciliation:</strong> Verifying your pay reflects all approved time and payment items.</div>
+                        </li>
+                        <li class="mb-2 d-flex align-items-start">
+                            <i class="bi bi-dot text-primary fs-4 me-1 line-height-1"></i>
+                            <div><strong>Garnishments & Wage Withholding:</strong> Managing court-ordered deductions from your pay.</div>
+                        </li>
+                        <li class="mb-2 d-flex align-items-start">
+                            <i class="bi bi-dot text-primary fs-4 me-1 line-height-1"></i>
+                            <div><strong>Direct Deposit:</strong> Ensuring your paycheck is deposited correctly into your bank account.</div>
+                        </li>
+                        <li class="d-flex align-items-start">
+                            <i class="bi bi-dot text-primary fs-4 me-1 line-height-1"></i>
+                            <div><strong>Tax Deductions & Payments:</strong> Withholding and remitting payroll taxes in compliance with regulations.</div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- HRIS SYSTEM WORKFLOW OVERVIEW (Grid Overview sa BABA) -->
+        <h4 class="fw-bold mb-3" style="color: var(--gp-navy);">Timekeeping, Leave & Payroll (HRIS) Overview</h4>
+        <p class="text-muted mb-4">An Automated Timekeeping, Leave, and Compensation Management System with Tardiness Ledgering and Periodic Payroll Report Generation</p>
+
+        <div class="row g-3">
+            <div class="col-md-6 col-lg-4">
+                <div class="module-summary-card">
+                    <span class="module-num-badge">1</span><strong>Registration & Shift Assignment</strong>
+                    <p class="small text-muted mb-0 mt-1">Enter profiles and rates; assign standard or flexible shifts.</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="module-summary-card">
+                    <span class="module-num-badge">2</span><strong>Daily Time-In / Time-Out</strong>
+                    <p class="small text-muted mb-0 mt-1">Compare clock timestamps against assigned shift boundaries.</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="module-summary-card">
+                    <span class="module-num-badge">3</span><strong>Tardiness & Undertime Ledger</strong>
+                    <p class="small text-muted mb-0 mt-1">Calculate late minutes after grace period and daily undertime.</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="module-summary-card">
+                    <span class="module-num-badge">4</span><strong>Leave Application</strong>
+                    <p class="small text-muted mb-0 mt-1">File leave type; validate available leave balance.</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="module-summary-card">
+                    <span class="module-num-badge">5</span><strong>Multi-Level Approval</strong>
+                    <p class="small text-muted mb-0 mt-1">Supervisor endorses; HR approves and updates leave credits.</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="module-summary-card">
+                    <span class="module-num-badge">6</span><strong>Payroll Cut-Off & Deductions</strong>
+                    <p class="small text-muted mb-0 mt-1">Aggregate work, overtime, tardiness, absences, and taxes.</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="module-summary-card">
+                    <span class="module-num-badge">7</span><strong>Payroll Locking</strong>
+                    <p class="small text-muted mb-0 mt-1">HR audits totals and locks period against retroactive edits.</p>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-4">
+                <div class="module-summary-card">
+                    <span class="module-num-badge">8</span><strong>DTR & Payslip Printing</strong>
+                    <p class="small text-muted mb-0 mt-1">Generate employee and departmental payroll documents.</p>
+                </div>
+            </div>
+        </div>
+    </main>
 </div>
 
-<div class="row g-4">
-    <!-- Module 1: Registration & Shift Assignment -->
-    <div class="col-md-6 col-lg-4">
-        {% if session.get('role') in ['admin', 'hr_manager', 'supervisor'] %}
-        <div class="module-card" data-bs-toggle="modal" data-bs-target="#shiftAssignmentModal">
-            <div class="module-number">1</div>
-            <div class="module-title">Registration & Shift Assignment</div>
-            <p class="module-desc">Enter profiles, rate details, and assign standard/flexible shift schedules.</p>
-        </div>
-        {% else %}
-        <a href="{{ url_for('register') }}" class="module-card-link">
-            <div class="module-card">
-                <div class="module-number">1</div>
-                <div class="module-title">Registration & Shift Assignment</div>
-                <p class="module-desc">Register new employee profiles and initial shift preferences.</p>
-            </div>
-        </a>
-        {% endif %}
-    </div>
-
-    <!-- Module 2: Time In / Time Out -->
-    <div class="col-md-6 col-lg-4">
-        <div class="module-card" data-bs-toggle="modal" data-bs-target="#timekeepingModal">
-            <div class="module-number">2</div>
-            <div class="module-title">Daily Time-In / Time-Out</div>
-            <p class="module-desc">Compare clock timestamps against assigned shift boundaries.</p>
-        </div>
-    </div>
-
-    <!-- Module 3: Tardiness & Undertime Ledger -->
-    <div class="col-md-6 col-lg-4">
-        <div class="module-card" data-bs-toggle="modal" data-bs-target="#tardinessModal">
-            <div class="module-number">3</div>
-            <div class="module-title">Tardiness & Undertime Ledger</div>
-            <p class="module-desc">Calculate late minutes after grace period and daily undertime.</p>
-        </div>
-    </div>
-
-    <!-- Module 4: Leave Application -->
-    <div class="col-md-6 col-lg-4">
-        <div class="module-card" data-bs-toggle="modal" data-bs-target="#leaveModal">
-            <div class="module-number">4</div>
-            <div class="module-title">Leave Application</div>
-            <p class="module-desc">File leave type; validate available leave balance.</p>
-        </div>
-    </div>
-
-    <!-- Module 5: Multi-Level Approval -->
-    <div class="col-md-6 col-lg-4">
-        <div class="module-card" data-bs-toggle="modal" data-bs-target="#approvalModal">
-            <div class="module-number">5</div>
-            <div class="module-title">Multi-Level Approval</div>
-            <p class="module-desc">Supervisor endorses; HR approves and updates leave credits.</p>
-        </div>
-    </div>
-
-    <!-- Module 6: Payroll Cut-Off & Deductions -->
-    <div class="col-md-6 col-lg-4">
-        <div class="module-card" data-bs-toggle="modal" data-bs-target="#payrollCutoffModal">
-            <div class="module-number">6</div>
-            <div class="module-title">Payroll Cut-Off & Deductions</div>
-            <p class="module-desc">Aggregate work, overtime, tardiness, absences, and taxes.</p>
-        </div>
-    </div>
-
-    <!-- Module 7: Payroll Locking -->
-    <div class="col-md-6 col-lg-4">
-        <div class="module-card" data-bs-toggle="modal" data-bs-target="#payrollLockModal">
-            <div class="module-number">7</div>
-            <div class="module-title">Payroll Locking</div>
-            <p class="module-desc">HR audits totals and locks the period against retroactive edits.</p>
-        </div>
-    </div>
-
-    <!-- Module 8: DTR & Payslip Printing -->
-    <div class="col-md-6 col-lg-4">
-        <a href="{{ url_for('export_payroll_csv') }}" class="module-card-link">
-            <div class="module-card">
-                <div class="module-number">8</div>
-                <div class="module-title">DTR & Payslip Printing</div>
-                <p class="module-desc">Generate employee and departmental payroll documents.</p>
-            </div>
-        </a>
-    </div>
-</div>
-
-<!-- ================= MODALS SECTION ================= -->
+<!-- ================= ALL ORIGINAL MODALS ARE PRESERVED ================= -->
 
 <!-- Module 1: Shift Assignment Modal (Admin / HR) -->
 <div class="modal fade" id="shiftAssignmentModal" tabindex="-1" aria-hidden="true">
