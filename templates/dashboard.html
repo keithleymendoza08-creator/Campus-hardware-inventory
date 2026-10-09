@@ -129,8 +129,8 @@
     <!-- LEFT SIDEBAR NAVIGATION -->
     <aside class="sidebar-nav">
         <div class="sidebar-brand d-flex align-items-center">
-            <!-- Global Payments Logo sa Sidebar -->
-            <img src="{{ url_for('static', filename='images/gp_logo.png') }}" alt="Logo" style="height: 28px; width: 28px; object-fit: contain;" class="me-2" onerror="this.onerror=null; this.src='https://via.placeholder.com/28?text=G';">
+            <!-- Corrected direct static logo path -->
+            <img src="{{ url_for('static', filename='gp_logo.png') }}" alt="Logo" style="height: 28px; width: 28px; object-fit: contain;" class="me-2">
             <span>HRIS Portal</span>
         </div>
         <ul class="sidebar-menu">
@@ -154,7 +154,7 @@
                     <i class="bi bi-calendar-check"></i> Leave Application
                 </a>
             </li>
-            {% if session.get('role') in ['admin', 'hr_manager', 'supervisor'] %}
+            {% if session.get('role') in ['admin', 'hr_manager', 'supervisor', 'hr'] %}
             <li>
                 <a href="#" class="sidebar-link" data-bs-toggle="modal" data-bs-target="#approvalModal">
                     <i class="bi bi-check2-square"></i> Pending Approvals
@@ -298,7 +298,7 @@
     </main>
 </div>
 
-<!-- ================= ALL ORIGINAL MODALS ARE PRESERVED ================= -->
+<!-- ================= ALL MODALS PRESERVED ================= -->
 
 <!-- Module 1: Shift Assignment Modal (Admin / HR) -->
 <div class="modal fade" id="shiftAssignmentModal" tabindex="-1" aria-hidden="true">
