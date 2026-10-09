@@ -3,7 +3,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import psycopg
 from psycopg.rows import dict_row
-import Laboratorysystem as lab
+import HRISsystem as hris
 from io import StringIO
 import csv
 import os
@@ -13,20 +13,20 @@ import threading
 import time
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'nu-lab-final-english-2026')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'global-payments-hris-2026')
 
 # --- DATABASE CONNECTION STRING ---
 DATABASE_URL = os.environ.get(
     'DATABASE_URL',
-    'postgresql://postgres.hudetzzomizjnygxkjqu:Keithley%40100420@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require'
+    'postgresql://postgres.hudetzzomizjnygxkjqu:Keithley%401004@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require'
 )
 
 # --- BREVO REST API CONFIGURATION ---
 BREVO_API_KEY = os.environ.get('BREVO_API_KEY', '')
-SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'no-reply@brevo.com')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'no-reply@globalpayments.com')
 
 def send_otp_email_worker(receiver_email, otp, intent):
-    """Background worker para sa pagpapadala ng OTP email gamit ang Brevo API nang hindi nagho-hold sa HTTP response."""
+    """Background worker for sending OTP emails via Brevo API without blocking HTTP response."""
     if not BREVO_API_KEY or 'YOUR-BREVO' in BREVO_API_KEY:
         print("API Error: Missing or default BREVO_API_KEY.")
         return
@@ -39,7 +39,7 @@ def send_otp_email_worker(receiver_email, otp, intent):
     }
     payload = {
         "sender": {
-            "name": "Laboratory System",
+            "name": "Global Payments HRIS",
             "email": SENDER_EMAIL
         },
         "to": [
@@ -47,7 +47,7 @@ def send_otp_email_worker(receiver_email, otp, intent):
                 "email": receiver_email
             }
         ],
-        "subject": f"Laboratory System - {intent} OTP",
+        "subject": f"Global Payments HRIS - {intent} OTP",
         "textContent": f"Your {intent} One-Time Password (OTP) is: {otp}\n\nThis OTP is valid for 5 minutes. Please enter this code to proceed. Do not share this code with anyone."
     }
 
@@ -65,15 +65,16 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-lab.init_system()
+hris.init_system()
 
 def migrate_users_table():
     try:
         conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
         with conn.cursor() as cur:
-            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS course TEXT DEFAULT '';")
-            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS section TEXT DEFAULT '';")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS employee_id TEXT DEFAULT '';")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS job_title TEXT DEFAULT '';")
             cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS department TEXT DEFAULT '';")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS hourly_rate NUMERIC DEFAULT 0;")
             conn.commit()
         conn.close()
     except Exception as e:
@@ -117,35 +118,32 @@ def register():
     if request.method == 'GET':
         return render_template('register.html')
 
-    student_id = request.form.get('student_id', '').strip()
+    employee_id = request.form.get('employee_id', '').strip()
     fullname = request.form.get('fullname', '').strip()
     email = request.form.get('email', '').strip()
     password = request.form.get('password', '').strip()
-    role = request.form.get('role', '').strip()
+    role = request.form.get('role', 'employee').strip()
 
     if len(password) < 8:
-        flash('Password must be at least 8 characters (standard)', 'danger')
+        flash('Password must be at least 8 characters', 'danger')
         return render_template('register.html')
 
     department = request.form.get('department','').strip()
-    section = request.form.get('section','').strip()
-    course = department if role == 'student' else request.form.get('course','').strip()
+    job_title = request.form.get('job_title','').strip()
 
-    if role in ['student', 'employee']:
-        if not department or not section:
-            flash('Please select Department and Section', 'danger')
-            return render_template('register.html')
+    if not department or not job_title:
+        flash('Please select Department and Job Title', 'danger')
+        return render_template('register.html')
 
     # Generate 6-digit OTP code & 5-minute expiration timestamp
     otp = str(random.randint(100000, 999999))
     session['pending_user'] = {
-        'student_id': student_id,
+        'employee_id': employee_id,
         'fullname': fullname,
         'email': email,
         'password': password,
         'role': role,
-        'course': course,
-        'section': section,
+        'job_title': job_title,
         'department': department,
         'otp': otp,
         'otp_expiry': time.time() + 300  # Valid for 300 seconds (5 minutes)
@@ -214,22 +212,21 @@ def verify_otp(action):
                 try:
                     with db.cursor() as cur:
                         cur.execute("""
-                            INSERT INTO users (student_id, fullname, email, password, role, course, section, department)
-                            VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
-                        """, (data['student_id'], data['fullname'], data['email'],
+                            INSERT INTO users (employee_id, fullname, email, password, role, job_title, department)
+                            VALUES (%s,%s,%s,%s,%s,%s,%s)
+                        """, (data['employee_id'], data['fullname'], data['email'],
                               generate_password_hash(data['password']), data['role'],
-                              data['course'], data['section'], data['department']))
+                              data['job_title'], data['department']))
                         db.commit()
                     session.pop(session_key, None)
                     flash("Account successfully verified and created! Please login.", "success")
                     return redirect(url_for("login"))
                 except Exception as e:
                     print("Registration Error:", e)
-                    flash("Email or ID already exists in the system.", "danger")
+                    flash("Email or Employee ID already exists in the system.", "danger")
                     return redirect(url_for("register"))
 
             elif action == "reset":
-                # Mark OTP as verified and allow setting new password
                 session['otp_verified_for_reset'] = True
                 flash("OTP code verified! Please set your new password.", "success")
                 return redirect(url_for("set_new_password"))
@@ -288,7 +285,6 @@ def resend_otp(action):
     data = session[session_key]
     new_otp = str(random.randint(100000, 999999))
     
-    # Update session with new OTP and reset expiration timer
     data['otp'] = new_otp
     data['otp_expiry'] = time.time() + 300
     session[session_key] = data
@@ -311,58 +307,82 @@ def dashboard():
     db = get_db()
     q = request.args.get('q', '')
     with db.cursor() as cur:
-        hardwares = cur.execute("SELECT * FROM hardware WHERE name ILIKE %s ORDER BY id DESC", (f"%{q}%",)).fetchall()
+        employees = cur.execute("SELECT * FROM users WHERE fullname ILIKE %s ORDER BY id DESC", (f"%{q}%",)).fetchall()
         
-        t_res = cur.execute("SELECT SUM(total_quantity) as c FROM hardware").fetchone()
-        total = t_res['c'] if t_res and t_res['c'] else 0
+        t_res = cur.execute("SELECT COUNT(*) as c FROM users WHERE role='employee'").fetchone()
+        total_employees = t_res['c'] if t_res else 0
         
-        b_res = cur.execute("SELECT SUM(borrowed) as c FROM hardware").fetchone()
-        borrowed = b_res['c'] if b_res and b_res['c'] else 0
+        l_res = cur.execute("SELECT COUNT(*) as c FROM leave_applications WHERE status='Pending'").fetchone()
+        pending_leaves = l_res['c'] if l_res else 0
         
-        e_res = cur.execute("SELECT SUM(available) as c FROM hardware").fetchone()
-        ending = e_res['c'] if e_res and e_res['c'] else 0
+        p_res = cur.execute("SELECT SUM(net_pay) as c FROM payroll_records").fetchone()
+        total_payroll = p_res['c'] if p_res and p_res['c'] else 0.0
 
-        my_borrowed = cur.execute("""
-            SELECT t.*, h.name as hname FROM transactions t
-            JOIN hardware h ON h.id=t.hardware_id
-            WHERE t.user_id=%s ORDER BY t.date_created DESC
+        my_leaves = cur.execute("""
+            SELECT * FROM leave_applications
+            WHERE user_id=%s ORDER BY date_created DESC
         """, (session['user_id'],)).fetchall()
 
-        pending = cur.execute("""
-            SELECT t.*, u.fullname, u.course, u.section, u.department, h.name as hname FROM transactions t
-            JOIN users u ON u.id=t.user_id
-            JOIN hardware h ON h.id=t.hardware_id
-            WHERE t.status='Pending' AND t.type='BORROW' ORDER BY t.date_created DESC
+        pending_leaves_list = cur.execute("""
+            SELECT l.*, u.fullname, u.department, u.job_title FROM leave_applications l
+            JOIN users u ON u.id=l.user_id
+            WHERE l.status='Pending' ORDER BY l.date_created DESC
         """).fetchall()
 
-        for_check = cur.execute("""
-            SELECT t.*, u.fullname, u.course, u.section, u.department, h.name as hname FROM transactions t
+        timekeeping_records = cur.execute("""
+            SELECT t.*, u.fullname, u.department FROM timekeeping t
             JOIN users u ON u.id=t.user_id
-            JOIN hardware h ON h.id=t.hardware_id
-            WHERE t.return_status='For Checking' ORDER BY t.date_created DESC
+            ORDER BY t.clock_in DESC LIMIT 20
         """).fetchall()
 
-    return render_template('dashboard.html', hardwares=hardwares, my_borrowed=my_borrowed, pending=pending, for_check=for_check, total_stocks=total, borrowed=borrowed, ending=ending, search_q=q)
+    return render_template(
+        'dashboard.html', 
+        employees=employees, 
+        my_leaves=my_leaves, 
+        pending_leaves=pending_leaves_list, 
+        timekeeping_records=timekeeping_records, 
+        total_employees=total_employees, 
+        pending_leaves_count=pending_leaves, 
+        total_payroll=total_payroll, 
+        search_q=q
+    )
 
-@app.route('/transactions')
-def transactions():
+@app.route('/timekeeping', methods=['GET', 'POST'])
+def timekeeping():
     if 'user_id' not in session:
         return redirect('/login')
+    if request.method == 'POST':
+        action_type = request.form.get('action') # 'time_in' or 'time_out'
+        if action_type == 'time_in':
+            hris.record_time_in(session['user_id'])
+            flash('Successfully Clocked In!', 'success')
+        elif action_type == 'time_out':
+            hris.record_time_out(session['user_id'])
+            flash('Successfully Clocked Out!', 'success')
+        return redirect('/timekeeping')
+
     db = get_db()
     with db.cursor() as cur:
-        if session['role'] in ['student','employee']:
-            logs = cur.execute("""
-                SELECT t.*, u.fullname, u.department, u.section, h.name as hname, h.category FROM transactions t
-                JOIN users u ON u.id=t.user_id JOIN hardware h ON h.id=t.hardware_id
-                WHERE t.user_id=%s ORDER BY t.date_created DESC
-            """, (session['user_id'],)).fetchall()
-        else:
-            logs = cur.execute("""
-                SELECT t.*, u.fullname, u.course, u.section, u.department, h.name as hname, h.category FROM transactions t
-                JOIN users u ON u.id=t.user_id JOIN hardware h ON h.id=t.hardware_id
-                ORDER BY t.date_created DESC
-            """).fetchall()
-    return render_template('transactions.html', logs=logs, borrows=logs)
+        records = cur.execute("""
+            SELECT t.*, u.fullname, u.department FROM timekeeping t
+            JOIN users u ON u.id=t.user_id
+            WHERE t.user_id=%s ORDER BY t.clock_in DESC
+        """, (session['user_id'],)).fetchall()
+    return render_template('timekeeping.html', records=records)
+
+@app.route('/leave/apply', methods=['POST'])
+def apply_leave():
+    if 'user_id' not in session:
+        return redirect('/login')
+    ok, msg = hris.request_leave(
+        session['user_id'], 
+        request.form['leave_type'], 
+        request.form['start_date'], 
+        request.form['end_date'], 
+        request.form['reason']
+    )
+    flash(msg, 'success' if ok else 'danger')
+    return redirect('/dashboard')
 
 @app.route('/profile', methods=['GET','POST'])
 def profile():
@@ -376,120 +396,54 @@ def profile():
                 filename = f"user_{session['user_id']}.{ext}"
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
                 file.save(filepath)
-                lab.update_profile_pic(session['user_id'], filename)
+                hris.update_profile_pic(session['user_id'], filename)
                 flash('Profile photo updated!', 'success')
                 return redirect('/profile')
     db = get_db()
     with db.cursor() as cur:
         user = cur.execute("SELECT * FROM users WHERE id=%s", (session['user_id'],)).fetchone()
-        stats = cur.execute("SELECT COUNT(*) as total, SUM(CASE WHEN status='Pending' THEN 1 ELSE 0 END) as pending FROM transactions WHERE user_id=%s", (session['user_id'],)).fetchone()
+        stats = cur.execute("""
+            SELECT COUNT(*) as total_leaves, 
+                   SUM(CASE WHEN status='Pending' THEN 1 ELSE 0 END) as pending 
+            FROM leave_applications WHERE user_id=%s
+        """, (session['user_id'],)).fetchone()
     return render_template('profile.html', user=user, stats=stats)
 
-@app.route('/borrow', methods=['POST'])
-def borrow():
-    if 'user_id' not in session:
-        return redirect('/login')
-    ok, msg = lab.request_borrow(session['user_id'], int(request.form['hw_id']), int(request.form['qty']), int(request.form['days']), request.form['remarks'])
+@app.route('/admin/approve_leave/<int:id>')
+def approve_leave(id):
+    if session.get('role') not in ['admin', 'hr_manager', 'supervisor']:
+        return redirect('/dashboard')
+    ok, msg = hris.approve_leave(id, session['user_id'])
     flash(msg, 'success' if ok else 'danger')
     return redirect('/dashboard')
 
-@app.route('/user/return/<int:id>')
-def user_return(id):
-    if 'user_id' not in session:
-        return redirect('/login')
-    lab.request_return(id)
-    flash('Return request submitted for checking.', 'info')
-    return redirect('/dashboard')
-
-@app.route('/user/pay/<int:id>')
-def user_pay(id):
-    if 'user_id' not in session:
-        return redirect('/login')
-    lab.pay_damage(id)
-    flash('Payment Paid!', 'success')
-    return redirect('/dashboard')
-
-@app.route('/admin/approve/<int:id>')
-def approve(id):
-    if 'user_id' not in session:
-        return redirect('/login')
-    ok, msg = lab.approve_borrow(id, session['user_id'])
-    flash(msg, 'success' if ok else 'danger')
-    return redirect('/dashboard')
-
-@app.route('/admin/check_return/<int:id>', methods=['POST'])
-def check_return(id):
-    if 'user_id' not in session:
-        return redirect('/login')
-    lab.admin_check_return(id, request.form['condition'], request.form.get('damage_remarks',''), float(request.form.get('payment',0)))
-    flash(f"Return checked as {request.form['condition']}", 'success')
-    return redirect('/dashboard')
-
-@app.route('/admin/add_stock', methods=['POST'])
-def add_stock():
-    if 'user_id' not in session:
-        return redirect('/login')
-    qty = int(request.form.get('quantity', 0) or 0)
-    if qty < 0:
-        flash("Quantity cannot be negative, but 0 allowed!", "danger")
+@app.route('/admin/calculate_payroll', methods=['POST'])
+def calculate_payroll():
+    if session.get('role') not in ['admin', 'hr_manager']:
         return redirect('/dashboard')
-    lab.add_or_restock_hardware(request.form['name'], request.form['category'], qty, request.form['location'], float(request.form.get('unit_price',0) or 0), session['user_id'])
-    flash(f'Stock added! Qty: {qty}', 'success')
+    period_start = request.form.get('period_start')
+    period_end = request.form.get('period_end')
+    hris.process_periodic_payroll(period_start, period_end)
+    flash(f"Payroll successfully processed for period {period_start} to {period_end}.", 'success')
     return redirect('/dashboard')
 
-@app.route('/admin/edit/<int:id>', methods=['POST'])
-def edit_item(id):
-    if session.get('role') in ['student','employee']:
-        return redirect('/dashboard')
-    db = get_db()
-    with db.cursor() as cur:
-        old = cur.execute("SELECT * FROM hardware WHERE id=%s", (id,)).fetchone()
-        if not old:
-            flash("Item not found", "danger")
-            return redirect('/dashboard')
-        name = request.form.get('name', old['name'])
-        category = request.form.get('category', old['category'])
-        location = request.form.get('location', old['location'])
-        unit_price = float(request.form.get('unit_price', old['unit_price']) or 0)
-        total_qty = int(request.form.get('total_quantity', old['total_quantity']) or 0)
-        avail = int(request.form.get('available', old['available']) or 0)
-        if total_qty < 0 or avail < 0:
-            flash("0 is allowed, negative not!", "danger")
-            return redirect('/dashboard')
-        if total_qty < old['borrowed']:
-            flash(f"Cannot set Beg to {total_qty}, may {old['borrowed']} pa borrowed!", "danger")
-            return redirect('/dashboard')
-        if avail > total_qty:
-            flash("Ending cannot be > Beginning", "danger")
-            return redirect('/dashboard')
-        new_borrowed = total_qty - avail
-        cur.execute("UPDATE hardware SET name=%s, category=%s, location=%s, unit_price=%s, total_quantity=%s, available=%s, borrowed=%s WHERE id=%s",
-                    (name, category, location, unit_price, total_qty, avail, new_borrowed, id))
-        db.commit()
-    flash(f'Updated! Beg:{total_qty} End:{avail} (0=Out of Stock)', 'success')
-    return redirect('/dashboard')
-
-@app.route('/admin/delete/<int:id>')
-def delete_item(id):
-    if 'user_id' not in session:
-        return redirect('/login')
-    lab.delete_hardware(id)
-    flash('Item deleted!', 'danger')
-    return redirect('/dashboard')
-
-@app.route('/export_csv')
-def export_csv():
+@app.route('/export_payroll_csv')
+def export_payroll_csv():
     if 'user_id' not in session:
         return redirect('/login')
     db = get_db()
     with db.cursor() as cur:
-        hw = cur.execute("SELECT * FROM hardware").fetchall()
+        payroll_data = cur.execute("""
+            SELECT p.*, u.fullname, u.department, u.employee_id 
+            FROM payroll_records p
+            JOIN users u ON u.id=p.user_id
+        """).fetchall()
     si = StringIO()
     w = csv.writer(si)
-    w.writerow(['ID','Equipment','Category','Beginning','Borrowed','Ending','Unit Price','Location'])
-    for h in hw:
-        w.writerow([h['id'], h['name'], h['category'], h['total_quantity'], h['borrowed'], h['available'], h['unit_price'], h['location']])
-    return Response(si.getvalue(), mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=inventory.csv"})
+    w.writerow(['Employee ID', 'Fullname', 'Department', 'Basic Pay', 'Overtime Pay', 'Tardy Deductions', 'Tax Deductions', 'Net Pay'])
+    for p in payroll_data:
+        w.writerow([p['employee_id'], p['fullname'], p['department'], p['basic_pay'], p['overtime_pay'], p['tardy_deductions'], p['tax_deductions'], p['net_pay']])
+    return Response(si.getvalue(), mimetype="text/csv", headers={"Content-Disposition":"attachment;filename=global_payments_payroll_register.csv"})
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))

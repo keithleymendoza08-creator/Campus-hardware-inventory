@@ -1,38 +1,20 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Forgot Password - Laboratory System</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="bg-light d-flex align-items-center justify-content-center min-vh-100">
-    <div class="card p-4 shadow-sm" style="max-width: 400px; width: 100%; border-radius: 12px;">
-        <h3 class="fw-bold mb-1">Forgot Password 🔑</h3>
-        <p class="text-muted small mb-3">Enter your registered email address to receive a 6-digit OTP code.</p>
-
-        {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            {% for category, message in messages %}
-              <div class="alert alert-{{ category }} py-2 text-center small mb-3">{{ message }}</div>
-            {% endfor %}
-          {% endif %}
-        {% endwith %}
-
-        <form action="{{ url_for('reset_request') }}" method="POST">
-            <div class="mb-3">
-                <label for="email" class="form-label fw-semibold">Email Address</label>
-                <input type="email" name="email" id="email" class="form-control" placeholder="Enter your email" required>
-            </div>
-
-            <button type="submit" class="btn btn-warning w-100 fw-bold py-2 text-white" style="background-color: #d97706; border: none;">
-                Send Verification Code →
-            </button>
-        </form>
-
-        <div class="mt-3 text-center small">
-            <a href="{{ url_for('login') }}" class="text-decoration-none">Back to Login</a>
+{% extends 'base.html' %}
+{% block title %}Reset Request - Global Payments HRIS{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+    <div class="col-md-4">
+        <div class="card card-custom p-4">
+            <h4 class="fw-bold text-gp mb-2">Forgot Password</h4>
+            <p class="text-muted small mb-4">Enter your registered email address to receive a 6-digit OTP code.</p>
+            <form action="/forgot" method="POST">
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Email Address</label>
+                    <input type="email" name="email" class="form-control" required placeholder="name@globalpayments.com">
+                </div>
+                <button type="submit" class="btn btn-gp w-100 fw-bold">Send Reset OTP</button>
+            </form>
+            <a href="/login" class="d-block text-center text-muted small mt-3">Back to Login</a>
         </div>
     </div>
-</body>
-</html>
+</div>
+{% endblock %}

@@ -1,82 +1,20 @@
-{% extends "base.html" %}
-{% block title %}Verify Email | Laboratory System{% endblock %}
-
+{% extends 'base.html' %}
+{% block title %}Verify OTP - Global Payments HRIS{% endblock %}
 {% block content %}
-<section class="auth-page" style="padding: 40px 15px;">
-  <div class="auth-card" style="margin: 0 auto; max-width: 440px; background: #ffffff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
-    
-    <div class="text-center mb-4">
-      <p style="text-transform: uppercase; font-size: 0.75rem; font-weight: 700; color: #6c757d; margin-bottom: 4px;">Two-Step Verification</p>
-      <h2 style="font-weight: 700; color: #35408E; margin-bottom: 8px;">Verify Your Email</h2>
-      <p style="font-size: 0.875rem; color: #6c757d; margin: 0;">Enter the 6-digit code sent to your email address (Valid for 5 minutes).</p>
-    </div>
-
-    <form method="post" action="{{ action_url }}">
-      <div style="margin-bottom: 20px;">
-        <label for="otp_code" style="display: block; font-size: 0.85rem; font-weight: 700; margin-bottom: 8px; color: #333;">Enter 6-Digit Code</label>
-        <div class="input-group">
-          <span class="input-group-text">🔢</span>
-          <input 
-            id="otp_code" 
-            name="otp_code" 
-            class="form-control"
-            maxlength="6" 
-            pattern="\d{6}" 
-            placeholder="123456" 
-            required 
-            autofocus 
-            style="letter-spacing: 6px; font-size: 1.25rem; font-weight: bold; text-align: center;"
-          >
+<div class="row justify-content-center mt-5">
+    <div class="col-md-4">
+        <div class="card card-custom p-4 text-center">
+            <i class="bi bi-shield-lock text-success display-4 mb-2"></i>
+            <h4 class="fw-bold text-gp">Enter OTP Code</h4>
+            <p class="text-muted small">We sent a 6-digit code to your email. The code is valid for 5 minutes.</p>
+            <form action="{{ action_url }}" method="POST">
+                <div class="mb-3">
+                    <input type="text" name="otp_code" maxlength="6" class="form-control text-center fs-3 fw-bold tracking-widest" required placeholder="000000">
+                </div>
+                <button type="submit" class="btn btn-gp w-100 fw-bold mb-3">Verify Code</button>
+            </form>
+            <a href="/resend-otp/{{ action }}" class="text-decoration-none small text-gp">Resend OTP Code</a>
         </div>
-      </div>
-
-      <button type="submit" class="btn w-100 text-white fw-bold" style="background-color: #35408E; padding: 10px; border-radius: 6px;">
-        Verify Code →
-      </button>
-    </form>
-
-    <!-- RESEND OTP & TIMER SECTION -->
-    <div style="margin-top: 24px; text-align: center; border-top: 1px solid #eee; padding-top: 16px;">
-      <p id="timerText" style="font-size: 0.875rem; color: #6c757d; margin-bottom: 8px;">
-        Didn't receive code? Resend in <span id="countdown" style="font-weight: bold; color: #35408E;">60</span>s
-      </p>
-      
-      <a 
-        id="resendBtn" 
-        href="{{ url_for('resend_otp', action=action) }}" 
-        class="btn btn-sm btn-outline-secondary fw-bold"
-        style="display: none; width: 100%; border-color: #35408E; color: #35408E;"
-      >
-        🔄 Resend OTP Code
-      </a>
     </div>
-
-    <div style="margin-top: 16px;" class="text-center">
-      <a href="{{ url_for('login') }}" style="font-size: 0.875rem; color: #35408E; text-decoration: none; font-weight: 600;">← Back to Login</a>
-    </div>
-
-  </div>
-</section>
-
-<script>
-  document.addEventListener("DOMContentLoaded", function() {
-    let timeLeft = 60;
-    const countdownEl = document.getElementById('countdown');
-    const resendBtn = document.getElementById('resendBtn');
-    const timerText = document.getElementById('timerText');
-
-    const timer = setInterval(() => {
-      timeLeft--;
-      if (countdownEl) {
-        countdownEl.textContent = timeLeft;
-      }
-      
-      if (timeLeft <= 0) {
-        clearInterval(timer);
-        if (timerText) timerText.style.display = 'none';
-        if (resendBtn) resendBtn.style.display = 'block';
-      }
-    }, 1000);
-  });
-</script>
+</div>
 {% endblock %}
