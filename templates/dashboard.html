@@ -327,23 +327,50 @@
             <div class="col-lg-8">
                 <div class="payroll-hero-card h-100" id="payroll-info">
                     <div class="row align-items-center g-4">
-                        <div class="col-md-4 text-center">
+                        <div class="col-lg-4 text-center">
                             <div class="payroll-icon-wrapper">
-                                <i class="bi bi-cash-coin" style="font-size: 7rem; color: #00A3E0;"></i>
+                                <!-- Money Hand Graphic Icon -->
+                                <i class="bi bi-cash-coin" style="font-size: 8.5rem; color: #00A3E0;"></i>
                             </div>
                         </div>
-                        <div class="col-md-8">
-                            <h3 class="fw-bold mb-2" style="color: var(--gp-navy);">Corporate Payroll Portal</h3>
-                            <p class="text-secondary small mb-3">
-                                Ensuring all employees are paid accurately and on time while maintaining full statutory and corporate compliance.
+                        <div class="col-lg-8">
+                            <h3 class="fw-bold mb-3" style="color: var(--gp-navy);">What Does Corporate Payroll Do?</h3>
+                            <p class="text-secondary fs-6 leading-relaxed mb-4">
+                                Payroll is responsible for ensuring all employees are paid accurately and on time. We manage and process pay, from approved time reporting to final paycheck delivery, while ensuring compliance with tax and legal requirements.
                             </p>
 
-                            <h6 class="fw-bold mb-2" style="color: var(--gp-navy);">Services & Assistance:</h6>
-                            <ul class="list-unstyled small mb-0">
-                                <li class="mb-1"><i class="bi bi-check-circle-fill text-primary me-2"></i><strong>Payroll Calendars & Paystubs:</strong> Access bi-monthly pay schedules and itemized payslips.</li>
-                                <li class="mb-1"><i class="bi bi-check-circle-fill text-primary me-2"></i><strong>Gross-to-Net Pay Calculations:</strong> Automatic withholding tax, SSS, PhilHealth, and Pag-IBIG computations.</li>
-                                <li class="mb-1"><i class="bi bi-check-circle-fill text-primary me-2"></i><strong>Attendance & Leave Credits:</strong> System-integrated timekeeping logs and approved leave reconciliations.</li>
-                                <li><i class="bi bi-check-circle-fill text-primary me-2"></i><strong>Direct Bank Advice:</strong> Secure batch disbursement processing.</li>
+                            <h6 class="fw-bold mb-2" style="color: var(--gp-navy);">How Payroll Can Help You:</h6>
+                            <p class="text-muted small mb-3">We're available to assist with questions related to:</p>
+
+                            <ul class="list-unstyled mb-0 small">
+                                <li class="mb-2 d-flex align-items-start">
+                                    <i class="bi bi-dot text-primary fs-4 me-1 line-height-1"></i>
+                                    <div><strong>Payroll Calendars & Paystubs:</strong> Understanding pay dates and reviewing your pay statements.</div>
+                                </li>
+                                <li class="mb-2 d-flex align-items-start">
+                                    <i class="bi bi-dot text-primary fs-4 me-1 line-height-1"></i>
+                                    <div><strong>Gross-to-Net Pay Processing:</strong> Ensuring your earnings, taxes, and deductions are calculated correctly.</div>
+                                </li>
+                                <li class="mb-2 d-flex align-items-start">
+                                    <i class="bi bi-dot text-primary fs-4 me-1 line-height-1"></i>
+                                    <div><strong>Approved Time & Payments:</strong> Processing EIS-approved hours, leaves, bonuses, and other pay elements.</div>
+                                </li>
+                                <li class="mb-2 d-flex align-items-start">
+                                    <i class="bi bi-dot text-primary fs-4 me-1 line-height-1"></i>
+                                    <div><strong>Pay Calculations & Reconciliation:</strong> Verifying your pay reflects all approved time and payment items.</div>
+                                </li>
+                                <li class="mb-2 d-flex align-items-start">
+                                    <i class="bi bi-dot text-primary fs-4 me-1 line-height-1"></i>
+                                    <div><strong>Garnishments & Wage Withholding:</strong> Managing court-ordered deductions from your pay.</div>
+                                </li>
+                                <li class="mb-2 d-flex align-items-start">
+                                    <i class="bi bi-dot text-primary fs-4 me-1 line-height-1"></i>
+                                    <div><strong>Direct Deposit:</strong> Ensuring your paycheck is deposited correctly into your bank account.</div>
+                                </li>
+                                <li class="d-flex align-items-start">
+                                    <i class="bi bi-dot text-primary fs-4 me-1 line-height-1"></i>
+                                    <div><strong>Tax Deductions & Payments:</strong> Withholding and remitting payroll taxes in compliance with regulations.</div>
+                                </li>
                             </ul>
                         </div>
                     </div>
@@ -359,7 +386,8 @@
                             <span class="badge bg-light text-dark border fw-semibold" id="calendarMonthLabel">October 2026</span>
                         </div>
 
-                        <div class="calendar-grid mb-3">
+                        <!-- DIRECT CSS GRID CONTAINER FOR FIXED DISPLAY -->
+                        <div class="calendar-grid mb-3" id="calendarDaysContainer">
                             <div class="calendar-day-header">Su</div>
                             <div class="calendar-day-header">Mo</div>
                             <div class="calendar-day-header">Tu</div>
@@ -367,9 +395,6 @@
                             <div class="calendar-day-header">Th</div>
                             <div class="calendar-day-header">Fr</div>
                             <div class="calendar-day-header">Sa</div>
-
-                            <!-- Calendar Days Auto-Generated via JS -->
-                            <div id="calendarDaysContainer" class="contents d-contents"></div>
                         </div>
                     </div>
 
@@ -954,7 +979,7 @@
     </div>
 </div>
 
-<!-- JAVASCRIPT FOR CALENDAR WIDGET GENERATION -->
+<!-- JAVASCRIPT FOR FIXED CALENDAR GRID GENERATION -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const calendarContainer = document.getElementById('calendarDaysContainer');
@@ -973,16 +998,25 @@ document.addEventListener('DOMContentLoaded', function() {
     const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-    calendarContainer.innerHTML = '';
+    // Panatilihin ang Headers at i-clear lang ang lumang cells
+    calendarContainer.innerHTML = `
+        <div class="calendar-day-header">Su</div>
+        <div class="calendar-day-header">Mo</div>
+        <div class="calendar-day-header">Tu</div>
+        <div class="calendar-day-header">We</div>
+        <div class="calendar-day-header">Th</div>
+        <div class="calendar-day-header">Fr</div>
+        <div class="calendar-day-header">Sa</div>
+    `;
 
-    // Empty offset cells for month start
+    // Blank offset cells para pumwesto sa tamang araw ng linggo
     for (let i = 0; i < firstDay; i++) {
         const emptyCell = document.createElement('div');
         emptyCell.className = 'calendar-cell opacity-0';
         calendarContainer.appendChild(emptyCell);
     }
 
-    // Populate Days
+    // Populate Days (1 hanggang 31)
     for (let day = 1; day <= daysInMonth; day++) {
         const dayCell = document.createElement('div');
         dayCell.className = 'calendar-cell';
