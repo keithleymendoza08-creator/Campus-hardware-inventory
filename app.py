@@ -406,7 +406,7 @@ def profile():
             SELECT COUNT(*) as total_leaves, 
                    SUM(CASE WHEN status='Pending' THEN 1 ELSE 0 END) as pending 
             FROM leave_applications WHERE user_id=%s
-        """, (session['user_id'],)).fetchone()
+        """, (session['user_id'],)).fetchall()
     return render_template('profile.html', user=user, stats=stats)
 
 @app.route('/admin/approve_leave/<int:id>')
