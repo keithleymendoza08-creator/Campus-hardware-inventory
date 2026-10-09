@@ -300,52 +300,83 @@ def logout():
 def dashboard():
     if 'user_id' not in session:
         return redirect('/login')
+
     db = get_db()
     q = request.args.get('q', '')
-    with db.cursor() as cur:
-        # Kunin ang buong detalye ng kasalukuyang naka-login na user para sa header / profile link
-        current_user = cur.execute("SELECT * FROM users WHERE id=%s", (session['user_id'],)).fetchone()
 
-        employees = cur.execute("SELECT * FROM users WHERE fullname ILIKE %s ORDER BY id DESC", (f"%{q}%",)).fetchall()
-        
-        t_res = cur.execute("SELECT COUNT(*) as c FROM users WHERE role='employee'").fetchone()
-        total_employees = t_res['c'] if t_res else 0
-        
-        l_res = cur.execute("SELECT COUNT(*) as c FROM leave_applications WHERE status='Pending'").fetchone()
-        pending_leaves = l_res['c'] if l_res else 0
-        
-        p_res = cur.execute("SELECT SUM(net_pay) as c FROM payroll_records").fetchone()
-        total_payroll = p_res['c'] if p_res and p_res['c'] else 0.0
+    try:
+        with db.cursor() as cur:
+            # 1. Fetch current user profile
+            current_user = cur.execute("SELECT * FROM users WHERE id=%s", (session['user_id'],)).fetchone()
 
-        my_leaves = cur.execute("""
-            SELECT * FROM leave_applications
-            WHERE user_id=%s ORDER BY date_created DESC
-        """, (session['user_id'],)).fetchall()
+            # Fallback if current_user query returns None
+            if not current_user:
+                current_user = {
+                    'fullname': session.get('fullname', 'Employee Profile'),
+                    'role': session.get('role', 'employee'),
+                    'email': session.get('user_email', '')
+                }
 
-        pending_leaves_list = cur.execute("""
-            SELECT l.*, u.fullname, u.department, u.job_title FROM leave_applications l
-            JOIN users u ON u.id=l.user_id
-            WHERE l.status='Pending' ORDER BY l.date_created DESC
-        """).fetchall()
+            # 2. Safely execute other dashboard metrics queries
+            employees = cur.execute("SELECT * FROM users WHERE fullname ILIKE %s ORDER BY id DESC", (f"%{q}%",)).fetchall() or []
+            
+            t_res = cur.execute("SELECT COUNT(*) as c FROM users WHERE role='employee'").fetchone()
+            total_employees = t_res['c'] if t_res else 0
+            
+            l_res = cur.execute("SELECT COUNT(*) as c FROM leave_applications WHERE status='Pending'").fetchone()
+            pending_leaves = l_res['c'] if l_res else 0
+            
+            p_res = cur.execute("SELECT SUM(net_pay) as c FROM payroll_records").fetchone()
+            total_payroll = p_res['c'] if p_res and p_res['c'] else 0.0
 
-        timekeeping_records = cur.execute("""
-            SELECT t.*, u.fullname, u.department FROM timekeeping t
-            JOIN users u ON u.id=t.user_id
-            ORDER BY t.clock_in DESC LIMIT 20
-        """).fetchall()
+            my_leaves = cur.execute("""
+                SELECT * FROM leave_applications
+                WHERE user_id=%s ORDER BY date_created DESC
+            """, (session['user_id'],)).fetchall() or []
 
-    return render_template(
-        'dashboard.html', 
-        user=current_user,
-        employees=employees, 
-        my_leaves=my_leaves, 
-        pending_leaves=pending_leaves_list, 
-        timekeeping_records=timekeeping_records, 
-        total_employees=total_employees, 
-        pending_leaves_count=pending_leaves, 
-        total_payroll=total_payroll, 
-        search_q=q
-    )
+            pending_leaves_list = cur.execute("""
+                SELECT l.*, u.fullname, u.department, u.job_title FROM leave_applications l
+                JOIN users u ON u.id=l.user_id
+                WHERE l.status='Pending' ORDER BY l.date_created DESC
+            """).fetchall() or []
+
+            timekeeping_records = cur.execute("""
+                SELECT t.*, u.fullname, u.department FROM timekeeping t
+                JOIN users u ON u.id=t.user_id
+                ORDER BY t.clock_in DESC LIMIT 20
+            """).fetchall() or []
+
+        return render_template(
+            'dashboard.html', 
+            user=current_user,
+            employees=employees, 
+            my_leaves=my_leaves, 
+            pending_leaves=pending_leaves_list, 
+            timekeeping_records=timekeeping_records, 
+            total_employees=total_employees, 
+            pending_leaves_count=pending_leaves, 
+            total_payroll=total_payroll, 
+            search_q=q
+        )
+
+    except Exception as e:
+        print("Dashboard Route Error:", e)
+        fallback_user = {
+            'fullname': session.get('fullname', 'Employee Profile'),
+            'role': session.get('role', 'employee')
+        }
+        return render_template(
+            'dashboard.html', 
+            user=fallback_user,
+            employees=[], 
+            my_leaves=[], 
+            pending_leaves=[], 
+            timekeeping_records=[], 
+            total_employees=0, 
+            pending_leaves_count=0, 
+            total_payroll=0.0, 
+            search_q=q
+        )
 
 @app.route('/timekeeping', methods=['GET', 'POST'])
 def timekeeping():
